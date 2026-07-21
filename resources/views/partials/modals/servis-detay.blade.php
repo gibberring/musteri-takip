@@ -442,11 +442,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (Number(status.id) === servisSonlandirildiId && Number(loggedInPozId) === teknisyenId) {
                     shouldShow = false;
                 }
+                // Atölyeye Alındı (9100): Patron/Muhasebe dışı için tüm listeyi silme.
+                // Cihaz Teslim Edildi + Parça Gidecek'e dönüşe izin ver; diğerleri hiyerarşiye kalsın.
                 if (Number(currentServiceStatusId) === 9100 && ![patronId, muhasebeId].includes(Number(loggedInPozId))) {
-                    if (Number(status.id) === 9115) {
+                    if ([9115, 9103].includes(Number(status.id))) {
                         shouldShow = true;
-                    } else {
-                        shouldShow = false;
                     }
                 }
             } catch (e) { /* no-op */ }
