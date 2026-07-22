@@ -217,14 +217,21 @@ class ServisController extends Controller
                     $ajaxQuery->where('servisler.servis_durum_id', $request->servis_durum_id);
                 }
 
-                // Tarih filtreleri (her iki filtre tipi için de ortak olabilir veya ayrı ayrı gönderilebilir)
-                // JS tarafında hangi tarih alanlarının gönderileceği ayarlandığı için 
-                // burada sadece gelen tarih parametrelerini kontrol etmemiz yeterli.
-                if ($request->filled('baslangic_tarih')) {
-                    $ajaxQuery->whereDate('servisler.created_at', '>=', $request->baslangic_tarih);
-                }
-                if ($request->filled('bitis_tarih')) {
-                    $ajaxQuery->whereDate('servisler.created_at', '<=', $request->bitis_tarih);
+                // Tarih filtreleri
+                // Teknisyen filtresi / teknisyen kendi listesi: gidiş tarihi (servisler.tarih)
+                // Diğer filtreler: kayıt tarihi (created_at)
+                if ($request->filled('baslangic_tarih') || $request->filled('bitis_tarih')) {
+                    $filterType = (string) $request->input('personel_filter_type', '');
+                    $useGidisTarihi = ($filterType === 'teknisyen')
+                        || ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch);
+                    $dateColumn = $useGidisTarihi ? 'servisler.tarih' : 'servisler.created_at';
+
+                    if ($request->filled('baslangic_tarih')) {
+                        $ajaxQuery->whereDate($dateColumn, '>=', $request->baslangic_tarih);
+                    }
+                    if ($request->filled('bitis_tarih')) {
+                        $ajaxQuery->whereDate($dateColumn, '<=', $request->bitis_tarih);
+                    }
                 }
                 
                 $draw = (int) $request->input('draw');

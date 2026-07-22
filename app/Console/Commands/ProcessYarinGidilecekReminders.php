@@ -65,8 +65,10 @@ class ProcessYarinGidilecekReminders extends Command
                 }
 
                 // Servis durumu ve teknisyen ataması
+                // Gidiş günü = cron'un çalıştığı gün (Yarın Gidilecek'in ertesi)
                 $servis->servis_durum_id = $durumTeknisyenYonlendirildi;
                 $servis->personel_id = $teknisyenId;
+                $servis->tarih = $now->format('Y-m-d');
                 $servis->save();
 
                 $cevap0 = new ServisDurumCevap0();
@@ -85,9 +87,8 @@ class ProcessYarinGidilecekReminders extends Command
                 $cevap->uye_firma_id = $servis->uye_firma_id;
                 $cevap->save();
 
-                // Log 2: Teknisyen yönlendirildi
-                $baseDate = $servis->tarih ? Carbon::parse($servis->tarih) : $now;
-                $gidisTarihi = $baseDate->copy()->addDay()->format('d.m.Y');
+                // Log: Teknisyen yönlendirildi (gidiş tarihi = bugün)
+                $gidisTarihi = $now->format('d.m.Y');
                 $teknisyenAd = Personel::where('id', $teknisyenId)->value('ad');
                 $teknisyenAd = $teknisyenAd ?: ('#' . $teknisyenId);
                 Islemloglari::create([
