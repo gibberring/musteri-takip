@@ -16,7 +16,8 @@ use Illuminate\Support\Facades\Log;
 class ProcessYarinGidilecekReminders extends Command
 {
     protected $signature = 'servis:yarin-gidilecek
-                            {--fix-tarih : Sadece sistem yonlendirmelerinde servis.tarih alanini duzelt}';
+                            {--fix-tarih : Sadece sistem yonlendirmelerinde servis.tarih alanini duzelt}
+                            {--days=90 : fix-tarih icin geriye bakilacak gun sayisi}';
 
     protected $description = 'Yarin Gidilecek servisler icin hatirlatma, yeniden yonlendirme ve tarih onarimi yapar.';
 
@@ -31,8 +32,8 @@ class ProcessYarinGidilecekReminders extends Command
             $this->info("Yonlendirilen: {$processed}");
         }
 
-        $fixed = $this->fixAutoRedirectDates($now);
-        Log::info('Yarın Gidilecek tarih onarımı tamamlandı.', ['fixed' => $fixed]);
+        $fixed = $this->fixAutoRedirectDates($now, (int) $this->option('days'));
+        Log::info('Yarın Gidilecek tarih onarımı tamamlandı.', ['fixed' => $fixed, 'days' => (int) $this->option('days')]);
         $this->info("Tarih duzeltilen: {$fixed}");
         $this->info('OK');
 
@@ -132,9 +133,10 @@ class ProcessYarinGidilecekReminders extends Command
     /**
      * Sistem otomatik yönlendirmesinde servis.tarih güncellenmemiş kayıtları onarır.
      */
-    private function fixAutoRedirectDates(Carbon $now): int
+    private function fixAutoRedirectDates(Carbon $now, int $days = 90): int
     {
-        $from = $now->copy()->subDays(3)->format('Y-m-d');
+        $days = max(1, min($days, 3650));
+        $from = $now->copy()->subDays($days)->format('Y-m-d');
         $logs = Islemloglari::query()
             ->where('servis_durum_id', 9098)
             ->whereNull('islemi_yapan_personel_id')
