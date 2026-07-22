@@ -597,7 +597,7 @@
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label fw-semibold">Servis Kayıt Tarih Aralığı</label>
+                                <label class="form-label fw-semibold">Gidiş Tarih Aralığı</label>
                                 <div class="input-group input-group-sm">
                                     <input type="date" class="form-control" id="teknisyenBaslangicTarih" placeholder="Başlangıç" value="{{ date('Y-m-d') }}">
                                     <span class="input-group-text">ile</span>
@@ -768,7 +768,7 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold">Servis Kayıt Tarih Aralığı</label>
+                        <label class="form-label fw-semibold">Gidiş Tarih Aralığı</label>
                         <div class="input-group input-group-sm">
                             <input type="date" class="form-control" id="teknisyenBaslangicTarihMobile" placeholder="Başlangıç" value="{{ date('Y-m-d') }}">
                             <span class="input-group-text">ile</span>
@@ -908,10 +908,10 @@
                                             style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#servisDetayModal">
                                             {{-- SERVİS NO --}}
                                             <td><span class="fw-normal">{{ $servis->id }}</span></td>
-                                            {{-- TARİH --}}
+                                            {{-- TARİH: gidiş tarihi (ana) + kayıt tarihi --}}
                                             <td>
-                                                <div class="fs-11">{{ $servis->created_at ? $servis->created_at->format('d.m.Y') : '-' }}</div>
-                                                <div class="fs-11 text-muted">{{ $servis->created_at ? $servis->created_at->format('H:i') : '-' }}</div>
+                                                <div class="fs-11 fw-semibold">{{ $servis->tarih ? \Carbon\Carbon::parse($servis->tarih)->format('d.m.Y') : '-' }}</div>
+                                                <div class="fs-10 text-muted">Kayıt: {{ $servis->created_at ? $servis->created_at->format('d.m.Y') : '-' }}</div>
                                             </td>
                                             {{-- MÜŞTERİ --}}
                                             <td>
