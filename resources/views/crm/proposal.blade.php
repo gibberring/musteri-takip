@@ -908,10 +908,10 @@
                                             style="cursor: pointer;" data-bs-toggle="modal" data-bs-target="#servisDetayModal">
                                             {{-- SERVİS NO --}}
                                             <td><span class="fw-normal">{{ $servis->id }}</span></td>
-                                            {{-- TARİH: gidiş tarihi (ana) + kayıt tarihi --}}
+                                            {{-- TARİH --}}
                                             <td>
-                                                <div class="fs-11 fw-semibold">{{ $servis->tarih ? \Carbon\Carbon::parse($servis->tarih)->format('d.m.Y') : '-' }}</div>
-                                                <div class="fs-10 text-muted">Kayıt: {{ $servis->created_at ? $servis->created_at->format('d.m.Y') : '-' }}</div>
+                                                <div class="fs-11">{{ $servis->created_at ? $servis->created_at->format('d.m.Y') : '-' }}</div>
+                                                <div class="fs-11 text-muted">{{ $servis->created_at ? $servis->created_at->format('H:i') : '-' }}</div>
                                             </td>
                                             {{-- MÜŞTERİ --}}
                                             <td>

@@ -153,36 +153,15 @@ $(document).ready(function() {
             }
         },
         {
-            "data": "tarih",
+            "data": "created_at",
             "render": function (data, type, row) {
-                // Ana tarih = gidiş tarihi (servisler.tarih); kayıt tarihi küçük not olarak
-                var gidis = '-';
-                if (row.tarih) {
-                    try {
-                        // YYYY-MM-DD gelirse timezone kayması olmasın
-                        var raw = String(row.tarih).substring(0, 10);
-                        var parts = raw.split('-');
-                        if (parts.length === 3) {
-                            gidis = parts[2] + '.' + parts[1] + '.' + parts[0];
-                        } else {
-                            gidis = new Date(row.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                        }
-                    } catch (e) {
-                        gidis = row.tarih;
-                    }
-                }
-                if (type === 'sort' || type === 'type') {
-                    return row.tarih || '';
-                }
-                var html = '<div class="fs-11 fw-semibold">' + gidis + '</div>';
-                if (row.created_at) {
-                    try {
-                        var kayitObj = new Date(row.created_at);
-                        var kayit = kayitObj.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                        html += '<div class="fs-10 text-muted">Kayıt: ' + kayit + '</div>';
-                    } catch (e2) {}
-                }
-                return html;
+                if (!row.created_at) return '-';
+                try {
+                    const tarihObj = new Date(row.created_at);
+                    const tarih = tarihObj.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    const saat = tarihObj.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                    return '<div class="fs-11">' + tarih + '</div><div class="fs-11 text-muted">' + saat + '</div>';
+                } catch (e) { return row.created_at; }
             }
         },
         {
