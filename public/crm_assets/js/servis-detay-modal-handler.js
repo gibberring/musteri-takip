@@ -54,84 +54,64 @@
         } catch (e) { /* no-op */ }
     });
 
-    $(document).on('show.bs.modal', '#servisDetayModal', function(event) {
-        if (window._proposalServisDetayShowHandler) {
-            // proposal.js zaten show handler'ı bağlamış
-            return;
-        }
+    var _servisDetayDetailXhr = null;
+    var _servisDetayRequestedId = null;
 
-        // Durum güncelleme alanını temizle (önceki seçim kalıntısını önle)
+    function clearServisDetayModalUi(servisIdHint) {
+        var loading = 'Yükleniyor…';
         try {
+            $('#modalServisId').text(servisIdHint ? String(servisIdHint) : '…');
+            $('#modalServisKayitTarihiBaslik').text(loading);
+            $('#modalServisOperatoruBaslik').text(loading);
+
+            $('#modalMusteriAd').text(loading).removeData('raw-ad');
+            $('#modalMusteriTel').text(loading);
+            $('#modalMusteriAdres').text(loading).removeData('raw-adres');
+            $('#modalMusteriAdresLink').attr('href', '#').removeClass('is-mobile').addClass('disabled').addClass('d-none');
+            $('#modalMusteriIl').text(loading).removeData('il-id');
+            $('#modalMusteriIlce').text(loading).removeData('ilce-id');
+            $('#modalVergiDairesi').text(loading).removeData('raw-vdaire');
+            $('#modalVergiNo').text(loading).removeData('raw-vno');
+
+            $('#modalMarkaAd').text(loading).removeData('marka-id');
+            $('#modalCihazTuruAd').text(loading).removeData('cihaz-turu-id');
+            $('#modalCihazModel').text(loading);
+            $('#modalSeriNo').text(loading);
+            $('#modalCihazAriza').text(loading);
+            $('#modalOperatorNotu').text(loading);
+
+            $('#modalMevcutDurumWrapper').html('<span class="badge bg-secondary">' + loading + '</span>');
+            $('#modalIslemLoglariBody').html('<tr><td colspan="5" class="text-center text-muted">' + loading + '</td></tr>');
+            $('#modalKasaHareketleriBody').html('<tr><td colspan="7" class="text-center text-muted">' + loading + '</td></tr>');
+
+            var $imgContainer = $('#servisResimleriContainer');
+            if ($imgContainer.length) {
+                $imgContainer.empty();
+            }
+            $('#noImageText').show();
+            $('#resimUploadServisId').val(servisIdHint || '');
+
             $('#modalDurumGuncelleSelect').val('');
             $('#modalDinamikFormAlani').html('');
             $('#modalDurumKaydetBtn').hide();
+
+            // Düzenleme modundan kalıntı olmasın
+            try {
+                $('#modalFooterNormal').show();
+                $('#modalFooterEdit').hide();
+                $('#modalMusteriIlRow').addClass('d-none');
+                $('#modalMusteriIlceRow').addClass('d-none');
+            } catch (e2) { /* no-op */ }
+
+            window.currentServisMusteriTel1 = '';
+            window.currentServisMusteriTel2 = '';
+            window.currentServisMevcutDurumId = '';
+            window.currentServisKasaHareketleri = [];
+            window.currentServisTahsilEdenName = '-';
         } catch (e) { /* no-op */ }
+    }
 
-        // Ödeme Ekle butonunun görünürlüğünü merkezi izinle yönet
-        try {
-            var $odemeEkleBtn = $('#odemeEkleBtn');
-            if ($odemeEkleBtn && $odemeEkleBtn.length) {
-                if (window.PERM && window.PERM.can && window.PERM.can.canAddKasa && window.PERM.can.canAddKasa()) {
-                    $odemeEkleBtn.show();
-                } else {
-                    $odemeEkleBtn.hide();
-                }
-            }
-            // Servisi Güncelle
-            var $servisGuncelleBtn = $('#servisGuncelleBtn');
-            if ($servisGuncelleBtn && $servisGuncelleBtn.length) {
-                if (window.PERM && window.PERM.can && window.PERM.can.canUpdateServis && window.PERM.can.canUpdateServis()) {
-                    $servisGuncelleBtn.show();
-                } else {
-                    $servisGuncelleBtn.hide();
-                }
-            }
-            // Servisi Sil
-            var $servisSilBtn = $('#servisSilBtn');
-            if ($servisSilBtn && $servisSilBtn.length) {
-                if (window.PERM && window.PERM.can && window.PERM.can.canDeleteServis && window.PERM.can.canDeleteServis()) {
-                    $servisSilBtn.show();
-                } else {
-                    $servisSilBtn.hide();
-                }
-            }
-            // PDF Fiş
-            var $pdfBtn = $('#servisFisiPdfBtn');
-            if ($pdfBtn && $pdfBtn.length) {
-                if (window.PERM && window.PERM.can && window.PERM.can.canViewPdfFis && window.PERM.can.canViewPdfFis()) {
-                    $pdfBtn.show();
-                } else {
-                    $pdfBtn.hide();
-                }
-            }
-            // Resim Ekle
-            var $resimEkleBtn = $('#resimEkleBtn');
-            if ($resimEkleBtn && $resimEkleBtn.length) {
-                if (window.PERM && window.PERM.can && window.PERM.can.canAddResim && window.PERM.can.canAddResim()) {
-                    $resimEkleBtn.show();
-                } else {
-                    $resimEkleBtn.hide();
-                }
-            }
-        } catch(e) { /* no-op */ }
-
-        var button = $(event.relatedTarget);
-        var servisId = (button && button.length) ? button.data('servis-id') : ($('#servisDetayModal').data('servis-id') || null);
-        if (!servisId) return;
-        // Panel gibi yerlerden sadece data-* ile geliyorsa, global ve modal state'e yaz
-        try {
-            $('#servisDetayModal').data('servis-id', servisId);
-            window.mevcutServisId = servisId;
-        } catch(e) { /* no-op */ }
-
-        // Temel veri çekme - detay endpoint'i mevcut
-        var detailUrl = '/servisler/' + servisId + '/detay';
-        var isHariciOperator = window.crmData && String(window.crmData.loggedInUserPozId) === '1076';
-        var searchValue = ($('#servisGenelArama').val() || $('#servisGenelAramaMobile').val() || '').trim();
-        if (isHariciOperator && searchValue.length >= 7) {
-            detailUrl += '?search_override=1&search_len=' + encodeURIComponent(searchValue.length);
-        }
-        $.get(detailUrl, function(data) {
+    function applyServisDetayModalData(data) {
             if (!data) return;
             try {
                 window.currentServisMevcutDurumId = (data.mevcutDurumId !== undefined && data.mevcutDurumId !== null) ? String(data.mevcutDurumId) : '';
@@ -422,7 +402,134 @@
                 else if (Array.isArray(data.kasa_hareketleri)) kasaList = data.kasa_hareketleri;
             }
             window.currentServisKasaHareketleri = kasaList;
+    }
+
+    /**
+     * Servis detayını yükler. Önceki isteği abort eder, UI'ı hemen temizler,
+     * response id eşleşmezse DOM'a yazmaz.
+     */
+    window.loadServisDetay = function(servisId) {
+        if (servisId === undefined || servisId === null || servisId === '') return;
+        var istenenServisId = String(servisId);
+
+        try {
+            $('#servisDetayModal').data('servis-id', istenenServisId);
+            window.mevcutServisId = istenenServisId;
+        } catch (e) { /* no-op */ }
+
+        if (_servisDetayDetailXhr && typeof _servisDetayDetailXhr.abort === 'function') {
+            try { _servisDetayDetailXhr.abort(); } catch (e) { /* no-op */ }
+        }
+        _servisDetayRequestedId = istenenServisId;
+        clearServisDetayModalUi(istenenServisId);
+
+        var detailUrl = '/servisler/' + istenenServisId + '/detay';
+        var isHariciOperator = window.crmData && String(window.crmData.loggedInUserPozId) === '1076';
+        var searchValue = ($('#servisGenelArama').val() || $('#servisGenelAramaMobile').val() || '').trim();
+        if (isHariciOperator && searchValue.length >= 7) {
+            detailUrl += '?search_override=1&search_len=' + encodeURIComponent(searchValue.length);
+        }
+
+        _servisDetayDetailXhr = $.get(detailUrl, function(data) {
+            if (!data) return;
+            if (String(data.id) !== String(_servisDetayRequestedId)) return;
+            applyServisDetayModalData(data);
+        }).fail(function(_xhr, textStatus) {
+            if (textStatus === 'abort') return;
+            if (String(_servisDetayRequestedId) !== istenenServisId) return;
+            try {
+                $('#modalMusteriAd').text('Yüklenemedi');
+                $('#modalMusteriTel').text('-');
+                $('#modalMusteriAdres').text('-');
+                $('#modalMevcutDurumWrapper').html('<span class="badge bg-danger">Yüklenemedi</span>');
+                $('#modalIslemLoglariBody').html('<tr><td colspan="5" class="text-center text-danger">Detay yüklenemedi.</td></tr>');
+                $('#modalKasaHareketleriBody').html('<tr><td colspan="7" class="text-center text-danger">Detay yüklenemedi.</td></tr>');
+            } catch (e) { /* no-op */ }
         });
+    };
+
+    $(document).on('show.bs.modal', '#servisDetayModal', function(event) {
+        if (window._proposalServisDetayShowHandler) {
+            // proposal.js zaten show handler'ı bağlamış
+            return;
+        }
+
+        // Durum güncelleme alanını temizle (önceki seçim kalıntısını önle)
+        try {
+            $('#modalDurumGuncelleSelect').val('');
+            $('#modalDinamikFormAlani').html('');
+            $('#modalDurumKaydetBtn').hide();
+        } catch (e) { /* no-op */ }
+
+        // Ödeme Ekle butonunun görünürlüğünü merkezi izinle yönet
+        try {
+            var $odemeEkleBtn = $('#odemeEkleBtn');
+            if ($odemeEkleBtn && $odemeEkleBtn.length) {
+                if (window.PERM && window.PERM.can && window.PERM.can.canAddKasa && window.PERM.can.canAddKasa()) {
+                    $odemeEkleBtn.show();
+                } else {
+                    $odemeEkleBtn.hide();
+                }
+            }
+            // Servisi Güncelle
+            var $servisGuncelleBtn = $('#servisGuncelleBtn');
+            if ($servisGuncelleBtn && $servisGuncelleBtn.length) {
+                if (window.PERM && window.PERM.can && window.PERM.can.canUpdateServis && window.PERM.can.canUpdateServis()) {
+                    $servisGuncelleBtn.show();
+                } else {
+                    $servisGuncelleBtn.hide();
+                }
+            }
+            // Servisi Sil
+            var $servisSilBtn = $('#servisSilBtn');
+            if ($servisSilBtn && $servisSilBtn.length) {
+                if (window.PERM && window.PERM.can && window.PERM.can.canDeleteServis && window.PERM.can.canDeleteServis()) {
+                    $servisSilBtn.show();
+                } else {
+                    $servisSilBtn.hide();
+                }
+            }
+            // PDF Fiş
+            var $pdfBtn = $('#servisFisiPdfBtn');
+            if ($pdfBtn && $pdfBtn.length) {
+                if (window.PERM && window.PERM.can && window.PERM.can.canViewPdfFis && window.PERM.can.canViewPdfFis()) {
+                    $pdfBtn.show();
+                } else {
+                    $pdfBtn.hide();
+                }
+            }
+            // Resim Ekle
+            var $resimEkleBtn = $('#resimEkleBtn');
+            if ($resimEkleBtn && $resimEkleBtn.length) {
+                if (window.PERM && window.PERM.can && window.PERM.can.canAddResim && window.PERM.can.canAddResim()) {
+                    $resimEkleBtn.show();
+                } else {
+                    $resimEkleBtn.hide();
+                }
+            }
+        } catch(e) { /* no-op */ }
+
+        // open() zaten loadServisDetay çağırdıysa tekrar yükleme
+        if (window._servisDetaySkipNextShowLoad) {
+            window._servisDetaySkipNextShowLoad = false;
+            return;
+        }
+
+        var button = $(event.relatedTarget);
+        var servisId = (button && button.length) ? button.data('servis-id') : ($('#servisDetayModal').data('servis-id') || null);
+        if (!servisId) return;
+        window.loadServisDetay(servisId);
+    });
+
+    // Modal zaten açıkken data-bs-toggle tıklaması show() no-op olduğu için detayı elle yenile
+    $(document).on('click', '[data-bs-target="#servisDetayModal"][data-servis-id]', function() {
+        if (window._proposalServisDetayShowHandler) return;
+        var modalEl = document.getElementById('servisDetayModal');
+        if (!modalEl || !modalEl.classList.contains('show')) return;
+        var sid = $(this).data('servis-id');
+        if (sid && typeof window.loadServisDetay === 'function') {
+            window.loadServisDetay(sid);
+        }
     });
 
     // === Global: Durum seçildiğinde dinamik form render ===
@@ -801,7 +908,12 @@
         // İçeriği tazele (güncel veriyi getir)
         var servisId = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
         if (!servisId) return;
-        $('#servisDetayModal').trigger('show.bs.modal');
+        if (typeof window.loadServisDetay === 'function') {
+            var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+            if (_sidReload) { window.loadServisDetay(_sidReload); }
+        } else {
+            $('#servisDetayModal').trigger('show.bs.modal');
+        }
     });
 
     // Modal kapandığında footer'ları güvenli şekilde sıfırla
@@ -1054,7 +1166,12 @@
                     $('#resimYukleModal').modal('hide');
                     form[0].reset();
                     // Modal içeriğini tazele
-                    $('#servisDetayModal').trigger('show.bs.modal');
+                    if (typeof window.loadServisDetay === 'function') {
+                        var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+                        if (_sidReload) { window.loadServisDetay(_sidReload); }
+                    } else {
+                        $('#servisDetayModal').trigger('show.bs.modal');
+                    }
                 });
             } else {
                 var msg = (response && response.message) ? response.message : 'Resim yüklenirken bir sorun oluştu.';
@@ -1225,7 +1342,12 @@
 
     // Düzenlemeyi iptal: modalı tazeleyelim
     $(document).off('click.servisKasa', '.kasa-iptal-btn').on('click.servisKasa', '.kasa-iptal-btn', function(){
-        $('#servisDetayModal').trigger('show.bs.modal');
+        if (typeof window.loadServisDetay === 'function') {
+            var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+            if (_sidReload) { window.loadServisDetay(_sidReload); }
+        } else {
+            $('#servisDetayModal').trigger('show.bs.modal');
+        }
     });
 
     // Düzenlemeyi kaydet
@@ -1251,7 +1373,12 @@
         .done(function(resp){
             if (resp && resp.success) {
                 Swal && Swal.fire('Başarılı!', resp.message || 'Kasa hareketi güncellendi.', 'success');
-                $('#servisDetayModal').trigger('show.bs.modal');
+                if (typeof window.loadServisDetay === 'function') {
+                    var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+                    if (_sidReload) { window.loadServisDetay(_sidReload); }
+                } else {
+                    $('#servisDetayModal').trigger('show.bs.modal');
+                }
             } else {
                 Swal && Swal.fire('Hata!', (resp && resp.message) ? resp.message : 'Güncelleme başarısız.', 'error');
             }
@@ -1299,7 +1426,12 @@
                     }
                     window.currentServisKasaHareketleri.unshift(response.yeniHareket);
                 } catch (e) { /* no-op */ }
-                $('#servisDetayModal').trigger('show.bs.modal');
+                if (typeof window.loadServisDetay === 'function') {
+                    var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+                    if (_sidReload) { window.loadServisDetay(_sidReload); }
+                } else {
+                    $('#servisDetayModal').trigger('show.bs.modal');
+                }
             } else {
                 Swal && Swal.fire('Hata!', (response && response.message) ? response.message : 'Bir hata oluştu.', 'error');
                 $btn.prop('disabled', false).html('<i class="feather feather-check"></i>');
@@ -1475,10 +1607,20 @@
                         } catch (eventError) {
                             console.warn('servisDurumuGuncellendi olayı tetiklenemedi:', eventError);
                         }
-                        $('#servisDetayModal').trigger('show.bs.modal');
+                        if (typeof window.loadServisDetay === 'function') {
+                            var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+                            if (_sidReload) { window.loadServisDetay(_sidReload); }
+                        } else {
+                            $('#servisDetayModal').trigger('show.bs.modal');
+                        }
                     });
                 } else {
-                    $('#servisDetayModal').trigger('show.bs.modal');
+                    if (typeof window.loadServisDetay === 'function') {
+                        var _sidReload = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+                        if (_sidReload) { window.loadServisDetay(_sidReload); }
+                    } else {
+                        $('#servisDetayModal').trigger('show.bs.modal');
+                    }
                 }
             } else {
                 Swal && Swal.fire('Hata!', (response && response.message) ? response.message : 'Güncelleme işlemi sırasında bir hata oluştu.', 'error');

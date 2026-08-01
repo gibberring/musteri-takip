@@ -371,50 +371,63 @@ document.addEventListener('DOMContentLoaded', function () {
 
         let hasOptions = false;
 
+        // Rol: Modal açılmadan önce window.loggedInUserPozId boş olabilir; crmData yedek
+        const patronId = 1071;
+        const muhasebeId = 1080;
+        const teknisyenId = 1077;
+        const operatorId = 1073;
+        const hariciOperatorId = 1076;
+        const parcaGidecekId = 9103;
+        const atolyeAlindiId = 9100;
+        const servisSonlandirildiId = 9099;
+        const restrictedStatuses = [9098, 9477, 9334, 9116]; // Teknisyen yönlendirildi, Yarın Gidilecek, Teyid Araması, Tekrar Servis
+        const rawPoz = (typeof window.loggedInUserPozId !== 'undefined' && window.loggedInUserPozId !== null && window.loggedInUserPozId !== '')
+            ? window.loggedInUserPozId
+            : (window.crmData && window.crmData.loggedInUserPozId != null ? window.crmData.loggedInUserPozId : null);
+        const loggedInPozId = rawPoz !== null ? Number(rawPoz) : null;
+        // Patron/Muhasebe: hiyerarşi kısıtı olmadan tüm durum seçenekleri
+        const isYonetici = [patronId, muhasebeId].includes(loggedInPozId);
+
         allPossibleStatuses.forEach(status => {
             let shouldShow = false;
-            const hiyerarsiListesi = status.hangi_asamalarda_gorunur; // Sütun adı düzeltildi
 
-            if (hiyerarsiListesi === '0') {
-                // '0' değerinin iş mantığınıza göre nasıl yorumlanacağını belirleyin.
-                // Örneğin, mevcut bir durum yoksa (yeni servis) veya her zaman gösterilebilir.
-                // Şimdilik, mevcut durum yoksa gösterelim diyelim:
-                if (currentServiceStatusId === null || currentServiceStatusId === undefined) {
-                    shouldShow = true;
-                }
-                // Veya her zaman göster:
-                // shouldShow = true; 
-            } else if (!hiyerarsiListesi || hiyerarsiListesi.trim() === '') {
-                shouldShow = true; // Kısıtlama yoksa göster
-            } else if (currentServiceStatusId !== null && currentServiceStatusId !== undefined) {
-                const allowedPreviousIds = hiyerarsiListesi.split(',')
-                                             .map(id => id.trim())
-                                             .filter(id => id !== '');
-                if (allowedPreviousIds.includes(String(currentServiceStatusId))) {
-                    shouldShow = true;
+            if (isYonetici) {
+                // Yönetici: hangi_asamalarda_gorunur filtresi atlanır
+                shouldShow = true;
+            } else {
+                // API bazen sayı/null dönebilir; trim güvenli olsun
+                const hiyerarsiListesi = (status.hangi_asamalarda_gorunur === null || status.hangi_asamalarda_gorunur === undefined)
+                    ? ''
+                    : String(status.hangi_asamalarda_gorunur);
+
+                if (hiyerarsiListesi === '0') {
+                    if (currentServiceStatusId === null || currentServiceStatusId === undefined) {
+                        shouldShow = true;
+                    }
+                } else if (!hiyerarsiListesi || hiyerarsiListesi.trim() === '') {
+                    shouldShow = true; // Kısıtlama yoksa göster
+                } else if (currentServiceStatusId !== null && currentServiceStatusId !== undefined) {
+                    const allowedPreviousIds = hiyerarsiListesi.split(',')
+                                                 .map(id => id.trim())
+                                                 .filter(id => id !== '');
+                    if (allowedPreviousIds.includes(String(currentServiceStatusId))) {
+                        shouldShow = true;
+                    }
                 }
             }
 
             // Mevcut durumun kendisini listede göstermeyelim
-            if (status.id == currentServiceStatusId) { 
+            if (status.id == currentServiceStatusId) {
                 shouldShow = false;
             }
 
-            // Parça Gidecek durumunda bazı seçenekler sadece Patron/Muhasebe görsün
+            // Rol bazlı ek kısıtlar / force-show (Parça Gidecek restricted vb.)
             try {
-                const patronId = 1071;
-                const muhasebeId = 1080;
-                const teknisyenId = 1077;
-                const operatorId = 1073;
-                const hariciOperatorId = 1076;
-                const parcaGidecekId = 9103;
-                const servisSonlandirildiId = 9099;
-                const restrictedStatuses = [9098, 9477, 9334, 9116]; // Teknisyen yönlendirildi, Yarın Gidilecek, Teyid Araması, Tekrar Servis
-                const loggedInPozId = (typeof window.loggedInUserPozId !== 'undefined') ? Number(window.loggedInUserPozId) : null;
                 if (Number(loggedInPozId) === hariciOperatorId && Number(status.id) === 9098) {
                     shouldShow = false;
                 }
-                if ([parcaGidecekId, servisSonlandirildiId].includes(Number(currentServiceStatusId)) && ![patronId, muhasebeId].includes(loggedInPozId)) {
+                // Parça Gidecek / Sonlandırıldı: restricted durumlar sadece Patron/Muhasebe (+ Operatör→9116)
+                if ([parcaGidecekId, servisSonlandirildiId].includes(Number(currentServiceStatusId)) && !isYonetici) {
                     if (restrictedStatuses.includes(Number(status.id))) {
                         if (!(Number(status.id) === 9116 && Number(loggedInPozId) === operatorId)) {
                             shouldShow = false;
@@ -442,10 +455,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (Number(status.id) === servisSonlandirildiId && Number(loggedInPozId) === teknisyenId) {
                     shouldShow = false;
                 }
-                // Atölyeye Alındı (9100): Patron/Muhasebe dışı için tüm listeyi silme.
-                // Cihaz Teslim Edildi + Parça Gidecek'e dönüşe izin ver; diğerleri hiyerarşiye kalsın.
-                if (Number(currentServiceStatusId) === 9100 && ![patronId, muhasebeId].includes(Number(loggedInPozId))) {
-                    if ([9115, 9103].includes(Number(status.id))) {
+                // Atölyeye Alındı (9100): yönetici zaten tüm listeyi görür;
+                // teknisyen/operatör vb. için pratik çıkışları force-show (hiyerarşi eksikse boş kalmasın)
+                if (!isYonetici && Number(currentServiceStatusId) === atolyeAlindiId) {
+                    if ([9115, 9103, 9105, 9104].includes(Number(status.id))) {
                         shouldShow = true;
                     }
                 }

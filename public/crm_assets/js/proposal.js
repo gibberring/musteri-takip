@@ -125,20 +125,24 @@ $(document).ready(function() {
         }
     );
 
+    // Masaüstü alanlar d-none ile gizlense de .val() dolu kalır (tarihler varsayılan bugün).
+    // Mobilde önce Mobile alanları okunmalı; aksi halde Antalya + geçmiş tarih masaüstü bugünüyle ezilir.
+    function isMobileFilterViewport() {
+        return window.matchMedia && window.matchMedia('(max-width: 575.98px)').matches;
+    }
+
     function getVisibleFilterValue(desktopSelector, mobileSelector) {
         var $desktop = $(desktopSelector);
         var $mobile = $(mobileSelector);
-        if ($desktop.length && $desktop.is(':visible')) {
-            return $desktop.val();
+        var preferMobile = isMobileFilterViewport();
+        var $primary = preferMobile ? $mobile : $desktop;
+        var $secondary = preferMobile ? $desktop : $mobile;
+
+        if ($primary.length) {
+            return $primary.val();
         }
-        if ($mobile.length && $mobile.is(':visible')) {
-            return $mobile.val();
-        }
-        if ($desktop.length) {
-            return $desktop.val();
-        }
-        if ($mobile.length) {
-            return $mobile.val();
+        if ($secondary.length) {
+            return $secondary.val();
         }
         return '';
     }
@@ -279,41 +283,33 @@ $(document).ready(function() {
                     d.pending_only = 1;
                 }
                 if (activeFilterType === 'bolge') {
-                    d.il_id = $('#bolgeSehir').val() || $('#bolgeSehirMobile').val();
-                    if ($('#bolgeBaslangicTarih').val() || $('#bolgeBaslangicTarihMobile').val()) {
-                        d.baslangic_tarih = $('#bolgeBaslangicTarih').val() || $('#bolgeBaslangicTarihMobile').val();
-                    }
-                    if ($('#bolgeBitisTarih').val() || $('#bolgeBitisTarihMobile').val()) {
-                        d.bitis_tarih = $('#bolgeBitisTarih').val() || $('#bolgeBitisTarihMobile').val();
-                    }
+                    d.il_id = getVisibleFilterValue('#bolgeSehir', '#bolgeSehirMobile') || '';
+                    var bolgeBas = getVisibleFilterValue('#bolgeBaslangicTarih', '#bolgeBaslangicTarihMobile');
+                    var bolgeBit = getVisibleFilterValue('#bolgeBitisTarih', '#bolgeBitisTarihMobile');
+                    if (bolgeBas) { d.baslangic_tarih = bolgeBas; }
+                    if (bolgeBit) { d.bitis_tarih = bolgeBit; }
                 } else if (activeFilterType === 'operator') {
-                    d.personel_id = $('#operatorPersonel').val() || $('#operatorPersonelMobile').val();
+                    d.personel_id = getVisibleFilterValue('#operatorPersonel', '#operatorPersonelMobile') || '';
                     d.personel_filter_type = 'operator';
-                    if ($('#operatorBaslangicTarih').val() || $('#operatorBaslangicTarihMobile').val()) {
-                        d.baslangic_tarih = $('#operatorBaslangicTarih').val() || $('#operatorBaslangicTarihMobile').val();
-                    }
-                    if ($('#operatorBitisTarih').val() || $('#operatorBitisTarihMobile').val()) {
-                        d.bitis_tarih = $('#operatorBitisTarih').val() || $('#operatorBitisTarihMobile').val();
-                    }
-                } else if (activeFilterType === 'teknisyen') { // YENİ: Teknisyen filtresi eklendi
-                    d.personel_id = $('#teknisyenPersonel').val() || $('#teknisyenPersonelMobile').val();
+                    var opBas = getVisibleFilterValue('#operatorBaslangicTarih', '#operatorBaslangicTarihMobile');
+                    var opBit = getVisibleFilterValue('#operatorBitisTarih', '#operatorBitisTarihMobile');
+                    if (opBas) { d.baslangic_tarih = opBas; }
+                    if (opBit) { d.bitis_tarih = opBit; }
+                } else if (activeFilterType === 'teknisyen') {
+                    d.personel_id = getVisibleFilterValue('#teknisyenPersonel', '#teknisyenPersonelMobile') || '';
                     d.personel_filter_type = 'teknisyen';
-                    if ($('#teknisyenBaslangicTarih').val() || $('#teknisyenBaslangicTarihMobile').val()) {
-                        d.baslangic_tarih = $('#teknisyenBaslangicTarih').val() || $('#teknisyenBaslangicTarihMobile').val();
-                    }
-                    if ($('#teknisyenBitisTarih').val() || $('#teknisyenBitisTarihMobile').val()) {
-                        d.bitis_tarih = $('#teknisyenBitisTarih').val() || $('#teknisyenBitisTarihMobile').val();
-                    }
+                    var tekBas = getVisibleFilterValue('#teknisyenBaslangicTarih', '#teknisyenBaslangicTarihMobile');
+                    var tekBit = getVisibleFilterValue('#teknisyenBitisTarih', '#teknisyenBitisTarihMobile');
+                    if (tekBas) { d.baslangic_tarih = tekBas; }
+                    if (tekBit) { d.bitis_tarih = tekBit; }
                 } else if (activeFilterType === 'servisDurum') {
                     d.personel_id = getVisibleFilterValue('#servisDurumTeknisyen', '#servisDurumTeknisyenMobile') || '';
                     d.personel_filter_type = 'teknisyen';
                     d.servis_durum_id = getVisibleFilterValue('#servisDurumSelect', '#servisDurumSelectMobile') || '';
-                    if ($('#servisDurumBaslangicTarih').val() || $('#servisDurumBaslangicTarihMobile').val()) {
-                        d.baslangic_tarih = $('#servisDurumBaslangicTarih').val() || $('#servisDurumBaslangicTarihMobile').val();
-                    }
-                    if ($('#servisDurumBitisTarih').val() || $('#servisDurumBitisTarihMobile').val()) {
-                        d.bitis_tarih = $('#servisDurumBitisTarih').val() || $('#servisDurumBitisTarihMobile').val();
-                    }
+                    var sdBas = getVisibleFilterValue('#servisDurumBaslangicTarih', '#servisDurumBaslangicTarihMobile');
+                    var sdBit = getVisibleFilterValue('#servisDurumBitisTarih', '#servisDurumBitisTarihMobile');
+                    if (sdBas) { d.baslangic_tarih = sdBas; }
+                    if (sdBit) { d.bitis_tarih = sdBit; }
                 }
             },
             "dataSrc": "data" 
@@ -412,18 +408,15 @@ $(document).ready(function() {
 
     // Yeni "Bölge Servis Ara" butonu için click listener
     $('#bolgeServisAraBtn, #bolgeServisAraBtnMobile').on('click', function() {
-        // isBolgeFilterActive = true;
-        // isOperatorFilterActive = false; 
         activeFilterType = 'bolge';
-        servisListDataTable.ajax.reload(null, false); // Callback'te bayrak sıfırlamaya gerek yok, activeFilterType kalıcı
+        // Filtre değişince 1. sayfaya dön; aksi halde start yüksek kalıp boş liste görünür
+        servisListDataTable.ajax.reload(null, true);
     });
 
     // YENİ: "Operatör Servis Ara" butonu için click listener
     $('#operatorServisAraBtn, #operatorServisAraBtnMobile').on('click', function() {
-        // isOperatorFilterActive = true;
-        // isBolgeFilterActive = false;
         activeFilterType = 'operator';
-        servisListDataTable.ajax.reload(null, false);
+        servisListDataTable.ajax.reload(null, true);
     });
 
     $(document).on('click', '#operatorComparisonLink, #operatorComparisonLinkMobile', function(e) {
@@ -442,15 +435,15 @@ $(document).ready(function() {
     // YENİ: "Teknisyen Servis Ara" butonu için click listener
     $('#teknisyenServisAraBtn, #teknisyenServisAraBtnMobile').on('click', function() {
         activeFilterType = 'teknisyen';
-        servisListDataTable.ajax.reload(null, false);
+        servisListDataTable.ajax.reload(null, true);
     });
 
     function runServisDurumFilter(){
         activeFilterType = 'servisDurum';
         if (servisListDataTable && servisListDataTable.ajax) {
-            servisListDataTable.ajax.reload(null, false);
+            servisListDataTable.ajax.reload(null, true);
         } else if ($.fn.DataTable && $.fn.DataTable.isDataTable && $.fn.DataTable.isDataTable('#servisListTable')) {
-            $('#servisListTable').DataTable().ajax.reload(null, false);
+            $('#servisListTable').DataTable().ajax.reload(null, true);
         }
     }
     window._servisDurumAra = runServisDurumFilter;

@@ -112,11 +112,12 @@ class PersonelController extends Controller
                 }
 
                 $recordsFiltered = (clone $baseQuery)->count();
-                $personeller = (clone $baseQuery)
-                    ->orderByDesc('id')
-                    ->skip($start)
-                    ->take($length)
-                    ->get();
+                $listQuery = (clone $baseQuery)->orderByDesc('id');
+                // length <= 0 → tüm kayıtlar (rütbe accordion / mobil liste için)
+                if ($length > 0) {
+                    $listQuery->skip(max(0, $start))->take($length);
+                }
+                $personeller = $listQuery->get();
 
                 $data = $personeller->map(function ($personel) use ($request) {
                     $profileUrl = route('personel.teknisyenProfil', ['personel' => $personel->id]);
@@ -132,7 +133,13 @@ class PersonelController extends Controller
                         'id' => $personel->id,
                         'id_html' => '<a href="' . e($profileUrl) . '" class="fw-bold profile-link">#' . e($personel->id) . '</a>',
                         'ad' => e($personel->ad ?? ''),
+                        'ad_raw' => (string) ($personel->ad ?? ''),
+                        'poz_id' => (int) ($personel->poz_id ?? 0),
                         'pozisyon' => e(optional($personel->pozisyon)->ad ?? 'N/A'),
+                        'nick' => (string) ($personel->nick ?? ''),
+                        'email' => (string) ($personel->email ?? ''),
+                        'tel1' => (string) ($personel->tel1 ?? ''),
+                        'tel2' => (string) ($personel->tel2 ?? ''),
                         'uyelik' => $uyelik,
                         'durum' => $durum,
                     ];
@@ -349,15 +356,17 @@ class PersonelController extends Controller
         try {
             $dataToUpdate = $request->except('sifre', 'sifre_confirmation', '_token', '_method', 'personel_id');
 
-            // Mesai/aktif tutarlılığı: Mesai 1 ise ikisi de 1; herhangi biri 0 ise ikisi de 0 (önce açma, sonra kapatma kontrolü).
+            // aktif = istihdam/yönlendirme durumu; mesai_basladimi = giriş/mesai.
+            // Pasif (aktif=0) kalıcıdır: mesai açmak aktif'i 1 yapmaz, mesaiyi de açmaz.
+            // Aktif personelde mesai bağımsız kapanabilir (yönlendirme listesinde kalır).
             $aktif = isset($dataToUpdate['aktif']) ? (int) $dataToUpdate['aktif'] : (int) $personel->aktif;
             $mesaiBasladimi = isset($dataToUpdate['mesai_basladimi']) ? (int) $dataToUpdate['mesai_basladimi'] : (int) ($personel->mesai_basladimi ?? 0);
-            if ($mesaiBasladimi === 1) {
-                $dataToUpdate['aktif'] = 1;
-                $dataToUpdate['mesai_basladimi'] = 1;
-            } elseif ($aktif === 0 || $mesaiBasladimi === 0) {
+            if ($aktif === 0) {
                 $dataToUpdate['aktif'] = 0;
                 $dataToUpdate['mesai_basladimi'] = 0;
+            } else {
+                $dataToUpdate['aktif'] = 1;
+                $dataToUpdate['mesai_basladimi'] = $mesaiBasladimi === 1 ? 1 : 0;
             }
 
             // Eğer şifre alanı doluysa ve geçerliyse, hash'leyip güncelle
@@ -682,6 +691,7 @@ class PersonelController extends Controller
             $musteriHaberVerecek = (clone $baseServisQuery)->where('servis_durum_id', 9110)->get();
             $ucretIadeSureci = (clone $baseServisQuery)->where('servis_durum_id', 9524)->get();
             $atolyedeServisler = (clone $baseServisQuery)->where('servis_durum_id', 9100)->get();
+            $yerindeBakimYapildi = (clone $baseServisQuery)->where('servis_durum_id', 9105)->get();
 
             $operatorKazancKayitlar = collect();
             $operatorKazancToplam = 0;
@@ -796,6 +806,7 @@ class PersonelController extends Controller
                 'musteriHaberVerecek',
                 'ucretIadeSureci',
                 'atolyedeServisler',
+                'yerindeBakimYapildi',
                 'operatorKazancKayitlar',
                 'operatorKazancToplam',
                 'operatorKazancAdet',

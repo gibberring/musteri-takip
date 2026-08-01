@@ -9,17 +9,28 @@
     // Modalı servisId ile açar. Eğer servisId verilmezse mevcut davranışı sürdürür.
     window.ServisDetayModal.open = function(servisId) {
         try {
-            if (typeof servisId !== 'undefined' && servisId !== null) {
-                // Modal elementine data olarak aktar (show handler bu değeri okuyabilir)
+            var modalEl = document.getElementById('servisDetayModal');
+            if (!modalEl) return;
+
+            var hasId = (typeof servisId !== 'undefined' && servisId !== null && servisId !== '');
+            if (hasId) {
+                // Modal elementine data olarak aktar
                 var $modalEl = $('#servisDetayModal');
                 if ($modalEl && $modalEl.length) {
                     $modalEl.data('servis-id', servisId);
                 }
-                // Global değişkeni de güncelle (varsa)
                 try { window.mevcutServisId = servisId; } catch (e) {}
+
+                // Modal zaten açıksa Bootstrap show() no-op olur; detayı doğrudan yükle.
+                // Kapalıysa da önce yükle; show.bs.modal çift yüklemeyi skip flag ile engeller.
+                if (typeof window.loadServisDetay === 'function') {
+                    var alreadyOpen = modalEl.classList.contains('show');
+                    if (!alreadyOpen) {
+                        window._servisDetaySkipNextShowLoad = true;
+                    }
+                    window.loadServisDetay(servisId);
+                }
             }
-            var modalEl = document.getElementById('servisDetayModal');
-            if (!modalEl) return;
 
             var instance = bootstrap.Modal.getOrCreateInstance(modalEl);
             instance.show();
@@ -32,5 +43,3 @@
     window.openServisDetay = window.ServisDetayModal.open;
 
 })(window, window.jQuery);
-
-

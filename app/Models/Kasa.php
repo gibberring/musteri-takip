@@ -40,6 +40,19 @@ class Kasa extends Model
         'sadece_kasa',
     ];
 
+    public function scopeNotDeleted($query)
+    {
+        return $query->where(function ($q) {
+            $q->where('silindi', '!=', 1)
+              ->orWhereNull('silindi');
+        });
+    }
+
+    public function scopeOnlyDeleted($query)
+    {
+        return $query->where('silindi', 1);
+    }
+
     /**
      * Kasa kaydının ait olduğu servisi getirir.
      */

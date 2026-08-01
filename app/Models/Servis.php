@@ -106,11 +106,15 @@ class Servis extends Model
     }
 
     /**
-     * Servise ait kasa hareketlerini getirir.
+     * Servise ait kasa hareketlerini getirir (soft-delete edilenler hariç).
      */
     public function kasaHareketleri(): HasMany
     {
-        return $this->hasMany(Kasa::class, 'servis_id');
+        return $this->hasMany(Kasa::class, 'servis_id')
+            ->where(function ($q) {
+                $q->where('silindi', '!=', 1)
+                  ->orWhereNull('silindi');
+            });
     }
 
     /**

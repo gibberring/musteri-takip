@@ -69,6 +69,20 @@ class ProcessYarinGidilecekReminders extends Command
                     return;
                 }
 
+                // Sadece hâlâ "Yarın Gidilecek" olan kayıtları yönlendir;
+                // Fiyatta Anlaşılamadı (9106) vb. diğer durumlarda dokunma.
+                if ((int) $servis->servis_durum_id !== 9477) {
+                    Log::info('Yarın Gidilecek duyurusu atlandı (servis 9477 değil).', [
+                        'announcement_id' => $ann->id,
+                        'servis_id' => $servis->id,
+                        'servis_durum_id' => (int) $servis->servis_durum_id,
+                    ]);
+                    $ann->aktif = false;
+                    $ann->processed_at = $now;
+                    $ann->save();
+                    return;
+                }
+
                 $latestCevap = ServisDurumCevap::where('soru_id', $teknisyenSoruId)
                     ->whereHas('durumCevap0', function ($q) use ($servis, $durumTeknisyenYonlendirildi) {
                         $q->where('servis_id', $servis->id)

@@ -3,7 +3,7 @@
 @section('title', 'Personel Listesi')
 
 @push('page_specific_css')
-<link rel="stylesheet" type="text/css" href="{{ asset('crm_assets/vendors/css/dataTables.bs5.min.css') }}">
+{{-- DataTables kaldırıldı; rütbe accordion kullanılıyor --}}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <style>
     /* Personel sayfasına özel ek stiller buraya eklenebilir */
@@ -74,34 +74,125 @@
     #personelDuzenleModal .modal-dialog { max-width: 900px; }
     /* Bootstrap modal-dialog-scrollable kullanacağız; ekstra sticky/height gerekmez */
 
-    /* DataTables font ayarı */
-    #personelListTable_wrapper table th,
-    #personelListTable_wrapper table td {
-        font-family: 'Inter', sans-serif;
-        font-size: 13px;
-        font-weight: 600;
-        line-height: 1.2; /* 15.6px / 13px ~ 1.2 */
-        /* display: -webkit-box; */
-        /* -webkit-line-clamp: 1; */
-        /* -webkit-box-orient: vertical; */
-        /* overflow: hidden; */
-        /* text-overflow: ellipsis; */
-        /* white-space: normal; */ 
-    }
-    /* Taşmayı engelle: tablo sabit yerleşim + hücrelerde satır kırma */
-    #personelListTable { table-layout: fixed; width: 100%; }
-    #personelListTable th, #personelListTable td { white-space: normal; word-break: break-word; }
-    .table-responsive { overflow-x: hidden; }
-    /* DataTables sayfalama ortalama dom ile yapılacak */
     .page-header-title,
     .page-header h5 {
         border-right: none !important;
         padding-right: 0 !important;
         margin-right: 0 !important;
     }
-    #personelListTable tbody td {
-        padding-top: 0.2rem;
-        padding-bottom: 0.2rem;
+    /* Rütbe accordion */
+    #personelAccordion .accordion-item {
+        border: 0;
+        border-bottom: 1px solid #e9ecef;
+    }
+    #personelAccordion .accordion-header {
+        background: #f8f9fa;
+        border-bottom: 0;
+    }
+    #personelAccordion .accordion-button {
+        font-family: 'Inter', sans-serif;
+        font-size: 0.9rem;
+        font-weight: 600;
+        padding: 0.75rem 1rem;
+        background: #f8f9fa;
+        box-shadow: none !important;
+        gap: 0.5rem;
+    }
+    #personelAccordion .accordion-button:not(.collapsed) {
+        background: #eef2ff;
+        color: #3454d1;
+    }
+    #personelAccordion .accordion-header:has(.accordion-button:not(.collapsed)) {
+        background: #eef2ff;
+    }
+    #personelAccordion .accordion-header:has(.accordion-button:not(.collapsed)) .poz-sort-btns {
+        background: #eef2ff;
+    }
+    #personelAccordion .accordion-button::after {
+        margin-left: 0.25rem;
+    }
+    #personelAccordion .poz-count-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: #e9ecef;
+        color: #495057;
+        border-radius: 999px;
+        padding: 0.15rem 0.55rem;
+    }
+    #personelAccordion .accordion-button:not(.collapsed) .poz-count-badge {
+        background: rgba(52, 84, 209, 0.12);
+        color: #3454d1;
+    }
+    #personelAccordion .poz-sort-btns {
+        display: inline-flex;
+        gap: 0.25rem;
+        flex-shrink: 0;
+        align-items: center;
+        padding-right: 0.5rem;
+        background: #f8f9fa;
+    }
+    #personelAccordion .poz-sort-btns .btn {
+        font-size: 0.7rem;
+        font-weight: 600;
+        padding: 0.15rem 0.45rem;
+        line-height: 1.2;
+    }
+    #personelAccordion .poz-sort-btns .btn.active {
+        background-color: #3454d1;
+        border-color: #3454d1;
+        color: #fff;
+    }
+    #personelAccordion .personel-row {
+        display: grid;
+        grid-template-columns: 64px 1fr minmax(90px, 140px) 72px 88px;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.45rem 1rem;
+        border-top: 1px solid #f1f3f5;
+        cursor: pointer;
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.2;
+    }
+    #personelAccordion .personel-row:hover {
+        background: #f8f9fa;
+    }
+    #personelAccordion .personel-row-head {
+        display: grid;
+        grid-template-columns: 64px 1fr minmax(90px, 140px) 72px 88px;
+        gap: 0.5rem;
+        align-items: center;
+        padding: 0.4rem 1rem;
+        background: #fff;
+        border-top: 1px solid #e9ecef;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+    }
+    #personelAccordion .personel-empty {
+        padding: 0.75rem 1rem;
+        color: #6c757d;
+        font-size: 0.85rem;
+    }
+    @media (max-width: 767.98px) {
+        #personelAccordion .personel-row,
+        #personelAccordion .personel-row-head {
+            grid-template-columns: 52px 1fr 72px;
+        }
+        #personelAccordion .col-poz,
+        #personelAccordion .col-uyelik {
+            display: none;
+        }
+        #personelAccordion .poz-sort-btns .btn {
+            padding: 0.2rem 0.4rem;
+        }
+        .personel-search-input-mobile {
+            max-width: 130px;
+            min-width: 0;
+        }
     }
 </style>
 @endpush
@@ -119,8 +210,14 @@
             $operatorPozisyonId = 1073; // Operatör pozisyon ID'si
         @endphp
         @if ($loggedInUser && $loggedInUser->poz_id != $operatorPozisyonId)
-        <div class="d-flex d-sm-none align-items-center justify-content-end ms-auto">
-            <button type="button" class="btn btn-primary btn-sm rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#yeniPersonelModal">
+        <div class="d-flex d-sm-none align-items-center justify-content-end ms-auto gap-2">
+            <div class="input-group input-group-sm personel-search-input-mobile">
+                <input type="text" class="form-control form-control-sm personel-search-input" placeholder="Personel ara..." aria-label="Personel ara">
+                <button class="btn btn-outline-primary" type="button" id="personelSearchBtnMobile" title="Ara">
+                    <i class="feather-search"></i>
+                </button>
+            </div>
+            <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 flex-shrink-0" data-bs-toggle="modal" data-bs-target="#yeniPersonelModal">
                 <i class="feather-plus me-1"></i>
                 <span>YENİ EKLE</span>
             </button>
@@ -128,7 +225,12 @@
         <div class="page-header-right ms-auto d-none d-sm-flex">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                    <input type="text" class="form-control form-control-sm" id="personelSearchInput" placeholder="Personel ara..." style="max-width: 220px;">
+                    <div class="input-group input-group-sm" style="max-width: 260px;">
+                        <input type="text" class="form-control form-control-sm personel-search-input" id="personelSearchInput" placeholder="Personel ara..." aria-label="Personel ara">
+                        <button class="btn btn-outline-primary" type="button" id="personelSearchBtnDesktop" title="Ara">
+                            <i class="feather-search"></i>
+                        </button>
+                    </div>
                     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#yeniPersonelModal">
                         <i class="feather-plus me-2"></i>
                         <span>YENİ PERSONEL EKLE</span>
@@ -145,45 +247,13 @@
             <div class="col-lg-12">
                 <div class="card border-0 shadow-none stretch stretch-full">
                     <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-hover" id="personelListTable">
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>AD SOYAD</th>
-                                        <th>POZİSYON</th>
-                                        <th>ÜYELİK</th>
-                                        <th>DURUM</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($personeller as $personel)
-                                        <tr class="clickable-row" data-personel-id="{{ $personel->id }}" style="cursor: pointer;">
-                                            <td><a href="{{ route('personel.teknisyenProfil', ['personel' => $personel->id]) }}" class="fw-bold profile-link">#{{ $personel->id }}</a></td>
-                                            <td>{{ $personel->ad }}</td>
-                                            <td>{{ $personel->pozisyon ? $personel->pozisyon->ad : 'N/A' }}</td>
-                                            <td>
-                                                @if($personel->aktif == 1)
-                                                    <span class="badge bg-soft-success text-success">Aktif</span>
-                                                @else
-                                                    <span class="badge bg-soft-danger text-danger">Pasif</span>
-                                                @endif
-                                            </td>
-                                            <td>
-                                                @if($personel->mesai_basladimi == 1)
-                                                    <span class="badge bg-soft-success text-success">Mesaide</span>
-                                                @else
-                                                    <span class="badge bg-soft-danger text-danger">Çalışmıyor</span>
-                                                @endif
-                                            </td>
-                                            
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                            @php $__toplamPersonel = $personeller->count(); @endphp
-                            <div class="px-4 pb-2 text-end small text-muted">Toplam personel sayısı: <span id="personelTotalCount">{{ $__toplamPersonel }}</span></div>
+                        <div id="personelListLoading" class="px-4 py-4 text-center text-muted small d-none">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Personeller yükleniyor...
                         </div>
+                        <div class="accordion accordion-flush" id="personelAccordion"></div>
+                        @php $__toplamPersonel = $personeller->count(); @endphp
+                        <div class="px-4 py-2 text-end small text-muted">Toplam personel sayısı: <span id="personelTotalCount">{{ $__toplamPersonel }}</span></div>
                     </div>
                 </div>
             </div>
@@ -261,8 +331,8 @@
                                             <label for="modalPersonelAktif" class="col-sm-4 col-form-label col-form-label-sm">Durum <span class="text-danger">*</span></label>
                                             <div class="col-sm-8">
                                                 <select class="form-select form-select-sm" id="modalPersonelAktif" name="aktif" required>
-                                                    <option value="1">Mesaide (Aktif)</option>
-                                                    <option value="0">Çalışmıyor (Pasif)</option>
+                                                    <option value="1">Aktif (yönlendirilebilir)</option>
+                                                    <option value="0">Pasif (listede görünmez)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -563,8 +633,8 @@
                                             <label for="yeniModalPersonelAktif" class="col-sm-4 col-form-label col-form-label-sm">Durum <span class="text-danger">*</span></label>
                                             <div class="col-sm-8">
                                                 <select class="form-select form-select-sm" id="yeniModalPersonelAktif" name="aktif" required>
-                                                    <option value="1" selected>Mesaide (Aktif)</option>
-                                                    <option value="0">Çalışmıyor (Pasif)</option>
+                                                    <option value="1" selected>Aktif (yönlendirilebilir)</option>
+                                                    <option value="0">Pasif (listede görünmez)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -792,70 +862,230 @@
     <!--! ================================================================ !-->
 @endsection
 
-@push('page_specific_vendor_js')
-<script src="{{ asset('crm_assets/vendors/js/dataTables.min.js') }}"></script>
-<script src="{{ asset('crm_assets/vendors/js/dataTables.bs5.min.js') }}"></script>
-@endpush
-
 @push('page_specific_main_scripts')
 <script src="{{ asset('crm_assets/js/helpers.js') }}"></script> <!-- Ortak Helperlar -->
 <script>
     $(document).ready(function() {
-        var personelTable = $('#personelListTable').DataTable({
-            "language": {
-                "emptyTable": "Kayıt bulunamadı.",
-                "paginate": { "previous": "Önceki Sayfa", "next": "Sonraki Sayfa" }
-            },
-            "processing": true,
-            "serverSide": true,
-            "ajax": {
-                "url": "/personeller",
-                "type": "GET",
-                "data": function (d) {
-                    d.search = d.search || {};
-                    d.search.value = $('#personelSearchInput').val() || '';
+        // Rütbe sırası: Teknisyen → Operatör → Harici Op. → Patron → Muhasebe → diğerleri
+        var POZ_ORDER = [1077, 1074, 1073, 1076, 1079, 1071, 1080, 1075, 1078];
+        var allPersoneller = [];
+        var groupSortDir = {}; // pozKey -> 'asc' | 'desc'
+        var openGroups = {};   // pozKey -> bool (kullanıcı tercihi)
+
+        function isMobileView() {
+            return window.matchMedia('(max-width: 767.98px)').matches;
+        }
+
+        function getSearchValue() {
+            var $visible = $('.personel-search-input:visible').first();
+            if ($visible.length) return ($visible.val() || '').trim();
+            return ($('.personel-search-input').first().val() || '').trim();
+        }
+
+        function syncSearchInputs(source) {
+            var val = $(source).val();
+            $('.personel-search-input').not(source).val(val);
+        }
+
+        function matchesSearch(p, q) {
+            if (!q) return true;
+            var hay = [
+                p.id, p.ad_raw || $('<div>').html(p.ad || '').text(), p.pozisyon,
+                p.nick, p.email, p.tel1, p.tel2
+            ].join(' ').toLocaleLowerCase('tr');
+            return hay.indexOf(q.toLocaleLowerCase('tr')) !== -1;
+        }
+
+        function pozSortIndex(pozId) {
+            var idx = POZ_ORDER.indexOf(Number(pozId));
+            return idx === -1 ? 1000 + Number(pozId || 0) : idx;
+        }
+
+        function groupKey(p) {
+            return String(p.poz_id || 0) + '|' + (p.pozisyon || 'N/A');
+        }
+
+        function sortPeople(list, dir) {
+            var sorted = list.slice();
+            sorted.sort(function(a, b) {
+                var na = (a.ad_raw || $('<div>').html(a.ad || '').text() || '').toLocaleLowerCase('tr');
+                var nb = (b.ad_raw || $('<div>').html(b.ad || '').text() || '').toLocaleLowerCase('tr');
+                if (na < nb) return dir === 'desc' ? 1 : -1;
+                if (na > nb) return dir === 'desc' ? -1 : 1;
+                return (a.id || 0) - (b.id || 0);
+            });
+            return sorted;
+        }
+
+        function defaultOpenForGroup(count, hasSearch) {
+            if (hasSearch) return true;
+            // Uzun listelerde kapalı başlat; küçük gruplar açık
+            if (isMobileView()) return count <= 15;
+            return count <= 40;
+        }
+
+        function renderPersonelAccordion() {
+            var q = getSearchValue();
+            var hasSearch = q.length > 0;
+            var filtered = allPersoneller.filter(function(p) { return matchesSearch(p, q); });
+            $('#personelTotalCount').text(filtered.length);
+
+            var groupsMap = {};
+            filtered.forEach(function(p) {
+                var key = groupKey(p);
+                if (!groupsMap[key]) {
+                    groupsMap[key] = {
+                        key: key,
+                        poz_id: p.poz_id || 0,
+                        name: $('<div>').html(p.pozisyon || 'N/A').text(),
+                        items: []
+                    };
                 }
-            },
-            "columns": [
-                { "data": "id_html" },
-                { "data": "ad" },
-                { "data": "pozisyon" },
-                { "data": "uyelik" },
-                { "data": "durum" }
-            ],
-            "paging": true,
-            "pageLength": 50,
-            "lengthChange": false,
-            "info": false,
-            "searching": false,
-            "autoWidth": false,
-            "ordering": false,
-            "dom": 'rt<"row"<"col-12 d-flex justify-content-center"p>>',
-            "createdRow": function(row, data) {
-                if (data && data.personel_id) {
-                    $(row).addClass('clickable-row').attr('data-personel-id', data.personel_id).css('cursor', 'pointer');
+                groupsMap[key].items.push(p);
+            });
+
+            var groups = Object.keys(groupsMap).map(function(k) { return groupsMap[k]; });
+            groups.sort(function(a, b) {
+                var sa = pozSortIndex(a.poz_id);
+                var sb = pozSortIndex(b.poz_id);
+                if (sa !== sb) return sa - sb;
+                return a.name.localeCompare(b.name, 'tr');
+            });
+
+            var $acc = $('#personelAccordion').empty();
+            if (!groups.length) {
+                $acc.append('<div class="personel-empty px-4 py-3">Kayıt bulunamadı.</div>');
+                return;
+            }
+
+            groups.forEach(function(g, idx) {
+                var dir = groupSortDir[g.key] || 'asc';
+                var people = sortPeople(g.items, dir);
+                var collapseId = 'pozCollapse_' + String(g.poz_id || 0) + '_' + idx;
+                var isOpen;
+                if (typeof openGroups[g.key] === 'boolean' && !hasSearch) {
+                    isOpen = openGroups[g.key];
+                } else if (hasSearch) {
+                    isOpen = true;
+                } else if (typeof openGroups[g.key] === 'boolean') {
+                    isOpen = openGroups[g.key];
+                } else {
+                    isOpen = defaultOpenForGroup(people.length, hasSearch);
                 }
-            },
-            "drawCallback": function(settings){
-                var api = this.api();
-                var info = api.page.info();
-                var $paginate = $('#personelListTable_wrapper').find('.dataTables_paginate');
-                if (info.pages <= 1) { $paginate.hide(); } else { $paginate.show(); }
-                if (typeof info.recordsTotal !== 'undefined') {
-                    $('#personelTotalCount').text(info.recordsTotal);
+
+                var $item = $('<div class="accordion-item"></div>');
+                var $header = $('<h2 class="accordion-header d-flex align-items-stretch"></h2>');
+                var $btn = $('<button type="button" class="accordion-button flex-grow-1' + (isOpen ? '' : ' collapsed') + '"></button>')
+                    .attr({
+                        'data-bs-toggle': 'collapse',
+                        'data-bs-target': '#' + collapseId,
+                        'aria-expanded': isOpen ? 'true' : 'false',
+                        'aria-controls': collapseId
+                    });
+                $btn.append($('<span></span>').text(g.name));
+                $btn.append($('<span class="poz-count-badge"></span>').text(people.length));
+
+                var $sortWrap = $('<span class="poz-sort-btns align-self-center me-2"></span>');
+                var $az = $('<button type="button" class="btn btn-outline-secondary btn-sm' + (dir === 'asc' ? ' active' : '') + '">A→Z</button>');
+                var $za = $('<button type="button" class="btn btn-outline-secondary btn-sm' + (dir === 'desc' ? ' active' : '') + '">Z→A</button>');
+                $az.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    groupSortDir[g.key] = 'asc';
+                    openGroups[g.key] = true;
+                    renderPersonelAccordion();
+                });
+                $za.on('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    groupSortDir[g.key] = 'desc';
+                    openGroups[g.key] = true;
+                    renderPersonelAccordion();
+                });
+                $sortWrap.append($az, $za);
+                $header.append($btn, $sortWrap);
+
+                var $collapse = $('<div class="accordion-collapse collapse' + (isOpen ? ' show' : '') + '"></div>')
+                    .attr({ id: collapseId });
+                $collapse.on('shown.bs.collapse', function() { openGroups[g.key] = true; });
+                $collapse.on('hidden.bs.collapse', function() { openGroups[g.key] = false; });
+
+                var $body = $('<div class="accordion-body p-0"></div>');
+                var $head = $('<div class="personel-row-head"></div>');
+                $head.append('<div>ID</div><div>Ad Soyad</div><div class="col-poz">Pozisyon</div><div class="col-uyelik">Üyelik</div><div>Durum</div>');
+                $body.append($head);
+
+                people.forEach(function(p) {
+                    var $row = $('<div class="personel-row clickable-row"></div>')
+                        .attr('data-personel-id', p.personel_id || p.id);
+                    $row.append($('<div></div>').html(p.id_html || ('#' + p.id)));
+                    $row.append($('<div></div>').html(p.ad || ''));
+                    $row.append($('<div class="col-poz"></div>').html(p.pozisyon || 'N/A'));
+                    $row.append($('<div class="col-uyelik"></div>').html(p.uyelik || ''));
+                    $row.append($('<div></div>').html(p.durum || ''));
+                    $body.append($row);
+                });
+
+                $collapse.append($body);
+                $item.append($header, $collapse);
+                $acc.append($item);
+            });
+        }
+
+        function reloadPersonelList() {
+            $('#personelListLoading').removeClass('d-none');
+            $.ajax({
+                url: '/personeller',
+                type: 'GET',
+                dataType: 'json',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                data: {
+                    draw: 1,
+                    start: 0,
+                    length: -1,
+                    'search[value]': ''
+                },
+                success: function(resp) {
+                    allPersoneller = (resp && resp.data) ? resp.data : [];
+                    $('#personelTotalCount').text(typeof resp.recordsTotal !== 'undefined' ? resp.recordsTotal : allPersoneller.length);
+                    renderPersonelAccordion();
+                },
+                error: function() {
+                    $('#personelAccordion').html('<div class="personel-empty px-4 py-3 text-danger">Personel listesi yüklenemedi.</div>');
+                },
+                complete: function() {
+                    $('#personelListLoading').addClass('d-none');
                 }
+            });
+        }
+
+        // DataTables yerine accordion API uyumluluğu (eski reload çağrıları)
+        var personelTable = {
+            ajax: {
+                reload: function() { reloadPersonelList(); }
+            }
+        };
+
+        var personelSearchTimer = null;
+        $(document).on('input', '.personel-search-input', function() {
+            syncSearchInputs(this);
+            clearTimeout(personelSearchTimer);
+            personelSearchTimer = setTimeout(function() {
+                renderPersonelAccordion();
+            }, 250);
+        });
+        $('#personelSearchBtnMobile, #personelSearchBtnDesktop').on('click', function() {
+            renderPersonelAccordion();
+        });
+        $(document).on('keydown', '.personel-search-input', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                syncSearchInputs(this);
+                renderPersonelAccordion();
             }
         });
 
-        var personelSearchTimer = null;
-        $('#personelSearchInput').on('input', function() {
-            clearTimeout(personelSearchTimer);
-            personelSearchTimer = setTimeout(function() {
-                personelTable.ajax.reload();
-            }, 300);
-        });
-
-        // Alt metin artık Blade ile basılıyor; ekstra JS enjektesine gerek yok
+        reloadPersonelList();
 
         var personelDuzenleModal = new bootstrap.Modal(document.getElementById('personelDuzenleModal'));
         var yeniPersonelModal = new bootstrap.Modal(document.getElementById('yeniPersonelModal'));
@@ -874,7 +1104,7 @@
 
 
         // ID sütunundaki linke tıklanınca satır click handler'ı tetiklenmesin
-        $('#personelListTable tbody').on('click', 'a.profile-link', function(e){
+        $('#personelAccordion').on('click', 'a.profile-link', function(e){
             e.stopPropagation();
         });
 
@@ -952,7 +1182,7 @@
             }
         }
 
-        $('#personelListTable tbody').on('click', 'tr.clickable-row', function(e) {
+        $('#personelAccordion').on('click', '.clickable-row', function(e) {
             // Eğer tıklama bir link üzerinde gerçekleşmişse (özellikle ID linki), modal açmayı durdur
             if ($(e.target).closest('a.profile-link').length) {
                 return; // profil sayfasına normal şekilde gitsin
@@ -1116,27 +1346,7 @@
                             'success'
                         );
 
-                        var updatedPersonel = response.personel_data.personel;
-                        var row = personelTable.row($(`tr[data-personel-id="${personelId}"]`));
-                        if (row.length) {
-                            var rowData = row.data();
-                            rowData[1] = updatedPersonel.ad; 
-                            
-                            var pozisyonAdi = 'N/A';
-                            var poz = null;
-                            if (updatedPersonel.poz_id) {
-                                if (response.personel_data && response.personel_data.pozisyonlar) { // response'dan gelen pozisyon listesini öncelikli kontrol et
-                                     poz = response.personel_data.pozisyonlar.find(p => p.id == updatedPersonel.poz_id);
-                                } else if (globalPozisyonlar) { // Sonra global listeyi kontrol et
-                                     poz = globalPozisyonlar.find(p => p.id == updatedPersonel.poz_id);
-                                }
-                                if (poz) pozisyonAdi = poz.ad;
-                            }
-                            rowData[2] = pozisyonAdi;
-                            rowData[3] = updatedPersonel.aktif == 1 ? '<span class="badge bg-soft-success text-success">Aktif</span>' : '<span class="badge bg-soft-danger text-danger">Pasif</span>'; 
-                            rowData[4] = updatedPersonel.mesai_basladimi == 1 ? '<span class="badge bg-soft-success text-success">Mesaide</span>' : '<span class="badge bg-soft-danger text-danger">Çalışmıyor</span>'; 
-                            row.data(rowData).draw(false); 
-                        }
+                        reloadPersonelList();
                     } else {
                         if (response.errors) {
                             $.each(response.errors, function(key, value) {

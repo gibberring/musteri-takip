@@ -62,6 +62,7 @@ class ServisController extends Controller
         $hariciOperatorPozisyonId = 1076;
         $teknisyenPozisyonId = 1077;
 
+        // Patron / Muhasebe / Operatör: kısıtsız (ileri tarihli servis dahil)
         if (in_array((int) $user->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $operatorPozisyonId], true)) {
             return null;
         }
@@ -69,6 +70,17 @@ class ServisController extends Controller
         if (in_array((int) $user->poz_id, [$teknisyenPozisyonId, $hariciOperatorPozisyonId], true)) {
             if ((int) $servis->personel_id !== (int) $user->id) {
                 return response()->json(['success' => false, 'message' => 'Bu servise erişim yetkiniz yok.'], 403);
+            }
+            // Yalnızca Teknisyen: gidiş tarihi (servisler.tarih) henüz gelmemişse detay/modal açamasın
+            if ((int) $user->poz_id === $teknisyenPozisyonId && $servis->tarih) {
+                $today = Carbon::today('Europe/Istanbul')->toDateString();
+                $gidis = Carbon::parse($servis->tarih)->toDateString();
+                if ($gidis > $today) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Bu servisin gidiş tarihi henüz gelmedi.',
+                    ], 403);
+                }
             }
             return null;
         }
@@ -105,15 +117,19 @@ class ServisController extends Controller
             $teknisyenYonlendirildiStatusId = 9098; // Teknisyen Yönlendirildi durumu ID'si
             $forceOwnServis = false;
             if ($loggedInUser) {
-                if ((int) $loggedInUser->poz_id === $tsrnTeknisyenPozisyonId) {
-                    $forceOwnServis = true;
-                } else {
-                    $ownOverride = RoleAbility::query()
-                        ->where('role_id', (int) $loggedInUser->poz_id)
-                        ->where('ability', 'canViewOwnServis')
-                        ->value('allowed');
-                    if ((int) $ownOverride === 1) {
+                $pozId = (int) $loggedInUser->poz_id;
+                // Patron / Muhasebe: kısıtsız (ileri tarihli 9098 dahil); canViewOwnServis override bile uygulanmaz
+                if (!in_array($pozId, [$patronPozisyonId, $muhasebePozisyonId], true)) {
+                    if ($pozId === $tsrnTeknisyenPozisyonId) {
                         $forceOwnServis = true;
+                    } else {
+                        $ownOverride = RoleAbility::query()
+                            ->where('role_id', $pozId)
+                            ->where('ability', 'canViewOwnServis')
+                            ->value('allowed');
+                        if ((int) $ownOverride === 1) {
+                            $forceOwnServis = true;
+                        }
                     }
                 }
             }
@@ -183,6 +199,16 @@ class ServisController extends Controller
                             ->where('c0.servis_durum_id', $teknisyenYonlendirildiStatusId)
                             ->select('c0.servis_id');
                     });
+
+                // İleri tarihli (gidiş > bugün) kayıtlar yalnızca teknisyene (1077) gizlensin; null tarih gösterilir.
+                // Patron / Muhasebe forceOwnServis almaz; yine de tarihi pozisyonla kilitle (override karışmasın).
+                if ((int) $loggedInUser->poz_id === $tsrnTeknisyenPozisyonId) {
+                    $todayIstanbul = Carbon::today('Europe/Istanbul')->toDateString();
+                    $baseQuery->where(function ($q) use ($todayIstanbul) {
+                        $q->whereNull('servisler.tarih')
+                            ->orWhereDate('servisler.tarih', '<=', $todayIstanbul);
+                    });
+                }
             }
 
             if ($request->ajax() || $request->expectsJson()) {
@@ -1152,6 +1178,11 @@ class ServisController extends Controller
                                 $servis->personel_id = $value;
                                 $servis->save();
                             }
+                            // Gidiş tarihi → servisler.tarih (teknisyen listesi bu alana göre filtreler)
+                            if ($soru->cevap_format === '[tarihSor]' && is_string($value) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                                $servis->tarih = $value;
+                                $servis->save();
+                            }
 
                         } catch (\Exception $e) {
                             Log::error('Cevap kaydedilirken hata oluştu:', [
@@ -1166,6 +1197,13 @@ class ServisController extends Controller
                     $teknisyenKey = 'dinamik_soru[' . $teknisyenSoruId . ']';
                     if (!empty($dinamikVeriler[$teknisyenKey])) {
                         $servis->personel_id = (int) $dinamikVeriler[$teknisyenKey];
+                        $servis->save();
+                    }
+                    // Failsafe: Gidiş Tarihi sorusundan servisler.tarih'i mutlaka güncelle
+                    $gidisTarihiSoruId = 13235;
+                    $gidisKey = 'dinamik_soru[' . $gidisTarihiSoruId . ']';
+                    if (!empty($dinamikVeriler[$gidisKey]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $dinamikVeriler[$gidisKey])) {
+                        $servis->tarih = (string) $dinamikVeriler[$gidisKey];
                         $servis->save();
                     }
                 }
@@ -1188,16 +1226,22 @@ class ServisController extends Controller
                                 'baslik' => $baslik,
                                 'icerik' => $icerik,
                                 'aktif' => true,
+                                'processed_at' => null,
                                 'olusturan_personel_id' => Auth::id(),
                             ]
                         );
                         $logAciklama .= ($logAciklama ? "<br>" : "") . "Yarın Gidilecek bildirimi planlandı: " . $notifyAt->format('d.m.Y H:i');
                     }
-                } elseif ((int) $mevcutDurum === $yarinGidilecekDurumId) {
+                } else {
+                    // 9477 dışına çıkınca (Fiyatta Anlaşılamadı vb.) bekleyen tüm
+                    // hatırlatmaları kapat; yalnızca gelecek published_at yetmez.
                     Announcement::where('servis_id', $servis->id)
                         ->where('hedef_rol', 'TEKNISYEN')
-                        ->where('published_at', '>', Carbon::now())
-                        ->update(['aktif' => false]);
+                        ->whereNull('processed_at')
+                        ->update([
+                            'aktif' => false,
+                            'processed_at' => Carbon::now(),
+                        ]);
                 }
 
                 // İşlem logu açıklaması veritabanı sütun limitini (500 karakter) aşmasın
@@ -1342,6 +1386,7 @@ class ServisController extends Controller
                             'baslik' => $baslik,
                             'icerik' => $icerik,
                             'aktif' => true,
+                            'processed_at' => null,
                             'olusturan_personel_id' => $user->id,
                         ]
                     );
@@ -1349,8 +1394,11 @@ class ServisController extends Controller
             } else {
                 Announcement::whereIn('servis_id', $servisler->pluck('id'))
                     ->where('hedef_rol', 'TEKNISYEN')
-                    ->where('published_at', '>', $now)
-                    ->update(['aktif' => false]);
+                    ->whereNull('processed_at')
+                    ->update([
+                        'aktif' => false,
+                        'processed_at' => $now,
+                    ]);
             }
         });
 
@@ -1463,11 +1511,23 @@ class ServisController extends Controller
         ob_start(); // Çıktı tamponlamasını başlat
 
         // ... (mevcut veri toplama ve $data dizisini oluşturma kodunuz) ...
-        $servis->load('musteri.il', 'musteri.ilce', 'marka', 'cihazTuru', 'servisDurum', 'islemloglari.personel', 'islemloglari.servisDurum', 'kasaHareketleri.personel', 'kasaHareketleri.odemeSekli', 'kasaHareketleri.odemeTuru', 'personel');
+        $servis->load([
+            'musteri.il',
+            'musteri.ilce',
+            'marka',
+            'cihazTuru',
+            'servisDurum',
+            'islemloglari.personel',
+            'islemloglari.servisDurum',
+            'kasaHareketleri.personel',
+            'kasaHareketleri.odemeSekli',
+            'kasaHareketleri.odemeTuru',
+            'personel',
+        ]);
 
-        // Sadece ödeme yönü -1 olmayan (yani Gelir veya Nötr olan) kasa hareketlerini al
+        // Soft-delete edilenler ilişki seviyesinde dışlanır; PDF'de yalnızca gelir/nötr hareketler
         $filteredKasaHareketleri = $servis->kasaHareketleri->filter(function ($hareket) {
-            return $hareket->odeme_yonu != -1;
+            return (int) ($hareket->silindi ?? 0) !== 1 && $hareket->odeme_yonu != -1;
         });
 
         // PDF görünümüne gönderilecek $data dizisini oluştur

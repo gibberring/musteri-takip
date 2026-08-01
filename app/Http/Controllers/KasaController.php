@@ -1199,8 +1199,9 @@ class KasaController extends Controller
     }
 
     /**
-     * Seçili teknisyenlerin mesai ve aktif durumunu güncelle (0/1).
-     * mesai_basladimi ve aktif aynı değere set edilir; updated_at Eloquent ile güncellenir.
+     * Seçili teknisyenlerin yalnızca mesai durumunu güncelle (0/1).
+     * aktif alanına dokunulmaz: pasif (aktif=0) personel mesai açılınca yeniden aktifleşmez;
+     * mesai kapatılınca aktif personel yönlendirme listesinden düşmez.
      */
     private function updateTechnicianShift(Request $request, int $mesaiBasladimi)
     {
@@ -1227,34 +1228,58 @@ class KasaController extends Controller
             return response()->json(['success' => false, 'message' => 'Geçerli teknisyen bulunamadı.'], 422);
         }
 
-        $updatedCount = Personel::whereIn('id', $filteredIds)
-            ->update([
-                'mesai_basladimi' => $mesaiBasladimi,
-                'aktif' => $mesaiBasladimi,
-            ]);
+        // Mesai aç: sadece aktif personelde mesai_basladimi=1; pasifler atlanır.
+        // Mesai kapat: sadece mesai_basladimi=0; aktif bayrağı korunur.
+        $query = Personel::whereIn('id', $filteredIds);
+        if ($mesaiBasladimi === 1) {
+            $query->where('aktif', 1);
+        }
 
-        $afterValues = Personel::whereIn('id', $filteredIds)
-            ->pluck('mesai_basladimi', 'id');
+        $updatedCount = $query->update([
+            'mesai_basladimi' => $mesaiBasladimi,
+        ]);
 
-        $wrongStateIds = $afterValues
-            ->filter(function ($value) use ($mesaiBasladimi) { return (int) $value !== $mesaiBasladimi; })
-            ->keys()
+        $afterRows = Personel::whereIn('id', $filteredIds)
+            ->get(['id', 'mesai_basladimi', 'aktif']);
+
+        $afterValues = $afterRows->pluck('mesai_basladimi', 'id');
+
+        $wrongStateIds = $afterRows
+            ->filter(function ($row) use ($mesaiBasladimi) {
+                // Mesai açarken pasifler bilinçli atlanır; hata listesine yazılmaz.
+                if ($mesaiBasladimi === 1 && (int) $row->aktif !== 1) {
+                    return false;
+                }
+                return (int) $row->mesai_basladimi !== $mesaiBasladimi;
+            })
+            ->pluck('id')
             ->values()
             ->all();
+
+        $skippedPassive = 0;
+        if ($mesaiBasladimi === 1) {
+            $skippedPassive = $afterRows->where('aktif', 0)->count();
+        }
+
+        $message = $updatedCount > 0
+            ? 'Seçilen teknisyenlerin mesai durumu güncellendi.'
+            : 'Seçilen teknisyenler zaten aynı durumda.';
+        if ($skippedPassive > 0) {
+            $message .= ' Pasif ' . $skippedPassive . ' teknisyen atlandı (aktif yapılmadı).';
+        }
 
         return response()->json([
             'success' => true,
             'updated' => $updatedCount,
             'after' => $afterValues,
             'still_active_ids' => $wrongStateIds,
-            'message' => $updatedCount > 0
-                ? 'Seçilen teknisyenlerin mesai durumu güncellendi.'
-                : 'Seçilen teknisyenler zaten aynı durumda.',
+            'skipped_passive' => $skippedPassive,
+            'message' => $message,
         ]);
     }
 
     /**
-     * Seçili teknisyenlerin mesaisini kapat (mesai_basladimi = 0, aktif = 0).
+     * Seçili teknisyenlerin mesaisini kapat (yalnızca mesai_basladimi = 0; aktif değişmez).
      */
     public function closeTechnicianShift(Request $request)
     {
@@ -1262,7 +1287,7 @@ class KasaController extends Controller
     }
 
     /**
-     * Seçili teknisyenlerin mesaisini aç (mesai_basladimi = 1, aktif = 1).
+     * Seçili teknisyenlerin mesaisini aç (yalnızca aktif=1 olanlarda mesai_basladimi = 1).
      */
     public function openTechnicianShift(Request $request)
     {

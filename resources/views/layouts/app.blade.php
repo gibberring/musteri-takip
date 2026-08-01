@@ -352,7 +352,7 @@
     {{-- Global yardımcılar ve servis detay modal köprüsü --}}
     <script src="{{ asset('crm_assets/js/helpers.js') }}"></script>
     <script src="{{ asset('crm_assets/js/permissions.js') }}?v={{ filemtime(public_path('crm_assets/js/permissions.js')) }}"></script>
-    <script src="{{ asset('crm_assets/js/servis-detay-modal.js') }}"></script>
+    <script src="{{ asset('crm_assets/js/servis-detay-modal.js') }}?v={{ filemtime(public_path('crm_assets/js/servis-detay-modal.js')) }}"></script>
     <script src="{{ asset('crm_assets/js/servis-detay-modal-handler.js') }}?v={{ filemtime(public_path('crm_assets/js/servis-detay-modal-handler.js')) }}"></script>
 
     {{-- Sayfaya özel ana işlevsellik script dosyaları (window.crmData tanımlandıktan sonra) --}}
