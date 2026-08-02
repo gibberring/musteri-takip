@@ -357,8 +357,8 @@ class PersonelController extends Controller
             $dataToUpdate = $request->except('sifre', 'sifre_confirmation', '_token', '_method', 'personel_id');
 
             // aktif = istihdam/yönlendirme durumu; mesai_basladimi = giriş/mesai.
-            // Pasif (aktif=0) kalıcıdır: mesai açmak aktif'i 1 yapmaz, mesaiyi de açmaz.
-            // Aktif personelde mesai bağımsız kapanabilir (yönlendirme listesinde kalır).
+            // Bu formda Durum=pasif seçilirse mesai de 0 yapılır.
+            // Not: Kasa Mesai Aç/Kapat aktif+mesai'yi birlikte günceller; çelişirse Kasa kuralı geçerli.
             $aktif = isset($dataToUpdate['aktif']) ? (int) $dataToUpdate['aktif'] : (int) $personel->aktif;
             $mesaiBasladimi = isset($dataToUpdate['mesai_basladimi']) ? (int) $dataToUpdate['mesai_basladimi'] : (int) ($personel->mesai_basladimi ?? 0);
             if ($aktif === 0) {
