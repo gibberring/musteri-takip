@@ -24,8 +24,52 @@ use Illuminate\Support\Facades\Schema;
 class PersonelController extends Controller
 {
     /**
-     * Şifre değişince ilgili personele ait web oturumlarını sonlandırır (session driver: database).
-     * Kim kendi şifresini değiştiriyorsa mevcut oturumu hariç tutulur; diğer cihazlar düşer.
+     * Şifre değişince personelin kimlik doğrulama sürelerini sonlandırır:
+     * - remember_token rotate (Beni hatırla cookie geçersiz)
+     * - Sanctum API token'ları sil
+     * - database session driver ise sessions tablosundan satırları sil
+     * Kim kendi şifresini değiştiriyorsa mevcut web oturumu hariç tutulur.
+     */
+    private function invalidateAuthAfterPasswordChange(Personel $personel): void
+    {
+        $personelId = (int) $personel->id;
+
+        try {
+            $personel->setRememberToken(Str::random(60));
+            $personel->saveQuietly();
+        } catch (\Throwable $e) {
+            Log::warning('Şifre değişikliği sonrası remember_token yenilenemedi.', [
+                'personel_id' => $personelId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        try {
+            $personel->tokens()->delete();
+        } catch (\Throwable $e) {
+            Log::warning('Şifre değişikliği sonrası API token silinemedi.', [
+                'personel_id' => $personelId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->invalidateDatabaseSessionsForPersonelId($personelId);
+
+        // AuthenticateSession: kendi şifresini değiştiren kullanıcının mevcut istek oturumu kalsın
+        if (Auth::check() && (int) Auth::id() === $personelId) {
+            try {
+                session()->put(
+                    'password_hash_' . Auth::getDefaultDriver(),
+                    $personel->getAuthPassword()
+                );
+            } catch (\Throwable $e) {
+                // yok say
+            }
+        }
+    }
+
+    /**
+     * Session driver=database iken personele ait aktif oturum kayıtlarını siler.
      */
     private function invalidateDatabaseSessionsForPersonelId(int $personelId): void
     {
@@ -388,7 +432,7 @@ class PersonelController extends Controller
             $sifreDegisti = $request->filled('sifre');
             $personel->update($dataToUpdate);
             if ($sifreDegisti) {
-                $this->invalidateDatabaseSessionsForPersonelId((int) $personel->id);
+                $this->invalidateAuthAfterPasswordChange($personel);
             }
             Log::info('Personel başarıyla güncellendi.', ['personel_id' => $personel->id]);
 
