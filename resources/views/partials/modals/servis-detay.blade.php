@@ -423,7 +423,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Rol bazlı ek kısıtlar / force-show (Parça Gidecek restricted vb.)
             try {
-                if (Number(loggedInPozId) === hariciOperatorId && Number(status.id) === 9098) {
+                // Teknisyen + Harici Operatör: hedef 9098 (Teknisyen Yönlendirildi) her zaman gizli
+                if ([hariciOperatorId, teknisyenId].includes(Number(loggedInPozId)) && Number(status.id) === 9098) {
                     shouldShow = false;
                 }
                 // Parça Gidecek / Sonlandırıldı: restricted durumlar sadece Patron/Muhasebe (+ Operatör→9116)
@@ -435,9 +436,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
                 if (Number(loggedInPozId) === teknisyenId && Number(currentServiceStatusId) === 9116) {
-                    if (Number(status.id) === 9098) {
-                        shouldShow = false;
-                    }
                     if ([9100, 9105].includes(Number(status.id))) {
                         shouldShow = true;
                     }

@@ -1080,7 +1080,22 @@ class ServisController extends Controller
             $teknisyenKaynakDurumlarSonlandirmaOncesi = [9100, 9103]; // Atölyeye Alındı, Parça Gidecek
             $sonlandirmaVeTamamlamaHedefDurumIds = [9099, 9114]; // Servisi Sonlandırıldı, Teslimata Hazır (Tamamlandı)
             $teknisyenPozisyonId = 1077;
+            $hariciOperatorPozisyonId = 1076;
+            $teknisyenYonlendirildiDurumId = 9098;
             $user = Auth::user();
+
+            // Teknisyen / Harici Operatör başka teknisyene yönlendiremez (9098)
+            if (
+                $user
+                && in_array((int) $user->poz_id, [$teknisyenPozisyonId, $hariciOperatorPozisyonId], true)
+                && (int) $yeniDurum === $teknisyenYonlendirildiDurumId
+            ) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bu duruma geçiş yetkiniz yok.',
+                ], 403);
+            }
+
             $hedefteOdemeZorunlu = in_array((int) $yeniDurum, $teknisyenOdemeZorunluHedefDurumIds, true)
                 || (
                     in_array((int) $mevcutDurum, $teknisyenKaynakDurumlarSonlandirmaOncesi, true)
