@@ -250,11 +250,13 @@
                                     Atölyede @if($atolyedeServisler->count() > 0)<span class="badge bg-primary ms-1">{{ $atolyedeServisler->count() }}</span>@endif
                                 </button>
                             </li>
-                            <li class="nav-item" role="presentation">
-                                <button class="nav-link" id="pills-yerinde-tab" data-bs-toggle="pill" data-bs-target="#pills-yerinde" type="button" role="tab" aria-controls="pills-yerinde" aria-selected="false">
-                                    Yerinde Bakım Yapıldı @if($yerindeBakimYapildi->count() > 0)<span class="badge bg-success ms-1">{{ $yerindeBakimYapildi->count() }}</span>@endif
-                                </button>
-                            </li>
+                            @if($canSeeYerindeBakim)
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="pills-yerinde-tab" data-bs-toggle="pill" data-bs-target="#pills-yerinde" type="button" role="tab" aria-controls="pills-yerinde" aria-selected="false">
+                                        Yerinde Bakım Yapıldı @if($yerindeBakimYapildi->count() > 0)<span class="badge bg-success ms-1">{{ $yerindeBakimYapildi->count() }}</span>@endif
+                                    </button>
+                                </li>
+                            @endif
                             @if($canSeeRestrictedTabs)
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link" id="pills-fiyat-tab" data-bs-toggle="pill" data-bs-target="#pills-fiyat" type="button" role="tab" aria-controls="pills-fiyat" aria-selected="false">
@@ -494,41 +496,43 @@
                                 @endif
                             </div>
 
-                            {{-- Yerinde Bakım Yapıldı Tab İçeriği --}}
-                            <div class="tab-pane fade" id="pills-yerinde" role="tabpanel" aria-labelledby="pills-yerinde-tab" tabindex="0">
-                                @if($yerindeBakimYapildi->isEmpty())
-                                    <p class="text-center mt-3">Bu sekmede görüntülenecek kayıt bulunmamaktadır.</p>
-                                @else
-                                    <div class="table-responsive">
-                                        <table class="table table-hover mb-0">
-                                            <thead>
-                                                <tr>
-                                                    <th>S.NO</th>
-                                                    <th>MÜŞTERİ</th>
-                                                    <th>Marka</th>
-                                                    <th>CİHAZ TÜRÜ</th>
-                                                    <th>Durum</th>
-                                                    <th>TARİH</th>
-                                                    <th>Açıklama</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                @foreach($yerindeBakimYapildi as $servis)
-                                                    <tr class="servis-row-click" data-servis-id="{{ $servis->id }}" style="cursor: pointer;">
-                                                        <td><a href="javascript:void(0);" class="servis-detay-ac-btn" data-servis-id="{{ $servis->id }}">#{{ $servis->id }}</a></td>
-                                                        <td>{{ $servis->musteri->ad ?? 'N/A' }}</td>
-                                                        <td>{{ $servis->marka->ad ?? 'N/A' }}</td>
-                                                        <td>{{ $servis->cihazTuru->ad ?? 'N/A' }}</td>
-                                                        <td><span class="badge bg-success">{{ $servis->servisDurum->ad ?? 'N/A' }}</span></td>
-                                                        <td>{{ Carbon::parse($servis->tarih)->format('d.m.Y') }}</td>
-                                                        <td>{{ Str::limit($servis->aciklama, 50) }}</td>
+                            @if($canSeeYerindeBakim)
+                                {{-- Yerinde Bakım Yapıldı Tab İçeriği --}}
+                                <div class="tab-pane fade" id="pills-yerinde" role="tabpanel" aria-labelledby="pills-yerinde-tab" tabindex="0">
+                                    @if($yerindeBakimYapildi->isEmpty())
+                                        <p class="text-center mt-3">Bu sekmede görüntülenecek kayıt bulunmamaktadır.</p>
+                                    @else
+                                        <div class="table-responsive">
+                                            <table class="table table-hover mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>S.NO</th>
+                                                        <th>MÜŞTERİ</th>
+                                                        <th>Marka</th>
+                                                        <th>CİHAZ TÜRÜ</th>
+                                                        <th>Durum</th>
+                                                        <th>TARİH</th>
+                                                        <th>Açıklama</th>
                                                     </tr>
-                                                @endforeach
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                @endif
-                            </div>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach($yerindeBakimYapildi as $servis)
+                                                        <tr class="servis-row-click" data-servis-id="{{ $servis->id }}" style="cursor: pointer;">
+                                                            <td><a href="javascript:void(0);" class="servis-detay-ac-btn" data-servis-id="{{ $servis->id }}">#{{ $servis->id }}</a></td>
+                                                            <td>{{ $servis->musteri->ad ?? 'N/A' }}</td>
+                                                            <td>{{ $servis->marka->ad ?? 'N/A' }}</td>
+                                                            <td>{{ $servis->cihazTuru->ad ?? 'N/A' }}</td>
+                                                            <td><span class="badge bg-success">{{ $servis->servisDurum->ad ?? 'N/A' }}</span></td>
+                                                            <td>{{ Carbon::parse($servis->tarih)->format('d.m.Y') }}</td>
+                                                            <td>{{ Str::limit($servis->aciklama, 50) }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
 
                             @if($canSeeRestrictedTabs)
                                 {{-- Fiyat Anlaşılmazlığı Tab İçeriği --}}

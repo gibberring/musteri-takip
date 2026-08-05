@@ -515,11 +515,12 @@ class PersonelController extends Controller
     {
         $loggedInUser = Auth::user();
         $patronPozisyonId = 1071;
+        $muhasebePozisyonId = 1080;
         $tsrnTeknisyenPozisyonId = 1077;
         $operatorPozisyonId = 1073;
 
-        // Yetkilendirme kontrolü: Patron, TŞRN Teknisyen ve Operatör erişebilir.
-        if (!($loggedInUser && in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $tsrnTeknisyenPozisyonId, $operatorPozisyonId], true))) {
+        // Yetkilendirme kontrolü: Patron, Muhasebe, TŞRN Teknisyen ve Operatör erişebilir.
+        if (!($loggedInUser && in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $tsrnTeknisyenPozisyonId, $operatorPozisyonId], true))) {
             abort(403, 'Bu profil sayfasına erişim yetkiniz bulunmamaktadır.');
         }
 
@@ -556,6 +557,8 @@ class PersonelController extends Controller
     {
         try {
             $loggedInUser = Auth::user();
+            $canSeeYerindeBakim = $loggedInUser
+                && in_array((int) $loggedInUser->poz_id, [1071, 1080], true);
             $personel->load('pozisyon'); // Personelin pozisyon bilgisini yükle
 
             $today = Carbon::today();
@@ -735,7 +738,9 @@ class PersonelController extends Controller
             $musteriHaberVerecek = (clone $baseServisQuery)->where('servis_durum_id', 9110)->get();
             $ucretIadeSureci = (clone $baseServisQuery)->where('servis_durum_id', 9524)->get();
             $atolyedeServisler = (clone $baseServisQuery)->where('servis_durum_id', 9100)->get();
-            $yerindeBakimYapildi = (clone $baseServisQuery)->where('servis_durum_id', 9105)->get();
+            $yerindeBakimYapildi = $canSeeYerindeBakim
+                ? (clone $baseServisQuery)->where('servis_durum_id', 9105)->get()
+                : collect();
 
             $operatorKazancKayitlar = collect();
             $operatorKazancToplam = 0;
@@ -851,6 +856,7 @@ class PersonelController extends Controller
                 'ucretIadeSureci',
                 'atolyedeServisler',
                 'yerindeBakimYapildi',
+                'canSeeYerindeBakim',
                 'operatorKazancKayitlar',
                 'operatorKazancToplam',
                 'operatorKazancAdet',
