@@ -747,22 +747,7 @@
                 if (typeof window.applyTeknisyenGorulduUi === 'function') {
                     window.applyTeknisyenGorulduUi(g);
                 }
-                try {
-                    var tw = response.teknisyen_whatsapp;
-                    if (tw && tw.sent) {
-                        // API ile sessiz otomatik gönderildi
-                    } else if (tw && !tw.sent && window.Swal) {
-                        var errMsg = (tw.error && String(tw.error).trim())
-                            ? String(tw.error)
-                            : 'WhatsApp API ayarlı değil veya mesaj gönderilemedi.';
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'WhatsApp gönderilemedi',
-                            text: errMsg,
-                            confirmButtonText: 'Tamam'
-                        });
-                    }
-                } catch (eWa) { /* no-op */ }
+                // teknisyen_whatsapp: gönderildi/gönderilemedi (tel yok, API hata) — operatöre Swal/toast yok; sunucu loglar.
                 // Formu sıfırla
                 $('#modalDurumGuncelleSelect').val('');
                 $('#modalDinamikFormAlani').empty();

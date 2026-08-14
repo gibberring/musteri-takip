@@ -1034,16 +1034,20 @@
                                             {{-- Durum --}}
                                             <td>
                                                 <div class="fw-bold">{{ $servis->servisDurum?->ad ?? 'N/A' }}</div>
-                                                <small class="fs-11 fw-normal text-muted d-block durum-teknisyen">
-                                                    Teknisyen :
-                                                    @if (!empty($servis->assignedPersonnelId))
+                                                @php
+                                                    $teknisyenAd = $servis->assignedPersonnelName;
+                                                    $hasAssignedTechnician = !empty($servis->assignedPersonnelId)
+                                                        && !empty($teknisyenAd)
+                                                        && $teknisyenAd !== 'Belirlenmedi';
+                                                @endphp
+                                                @if ($hasAssignedTechnician)
+                                                    <small class="fs-11 fw-normal text-muted d-block durum-teknisyen">
+                                                        Teknisyen :
                                                         <a href="{{ route('personel.teknisyenProfil', $servis->assignedPersonnelId) }}" class="text-decoration-none">
-                                                            {{ $servis->assignedPersonnelName }}
+                                                            {{ $teknisyenAd }}
                                                         </a>
-                                                    @else
-                                                        {{ $servis->assignedPersonnelName ?? 'Belirlenmedi' }}
-                                                    @endif
-                                                </small>
+                                                    </small>
+                                                @endif
                                                 @php
                                                     $gidisTarihGoster = '-';
                                                     if (!empty($servis->tarih)) {

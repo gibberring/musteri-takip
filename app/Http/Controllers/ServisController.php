@@ -391,7 +391,7 @@ class ServisController extends Controller
                     } else {
                         Log::debug('AJAX için servis durum cevap veya cevap bulunamadı.', ['servis_id' => $servis->id, 'servisDurumCevap' => $servisDurumCevap]);
                     }
-                    $servis->assignedPersonnelName = $assignedPersonnel ?? 'Belirlenmedi';
+                    $servis->assignedPersonnelName = $assignedPersonnel;
                     $servis->assignedPersonnelId = $assignedPersonnelId;
                     $lastLog = Islemloglari::where('servis_id', $servis->id)
                         ->where(function ($q) {
@@ -443,7 +443,7 @@ class ServisController extends Controller
                     Log::debug('Normal yükleme için servis durum cevap veya cevap bulunamadı.', ['servis_id' => $servis->id, 'servisDurumCevap' => $servisDurumCevap]);
                 }
                 
-                $servis->assignedPersonnelName = $assignedPersonnel ?? 'Belirlenmedi';
+                $servis->assignedPersonnelName = $assignedPersonnel;
                 $servis->assignedPersonnelId = $assignedPersonnelId;
                 $lastLog = Islemloglari::where('servis_id', $servis->id)
                     ->where(function ($q) {

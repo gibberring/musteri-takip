@@ -214,8 +214,11 @@ $(document).ready(function() {
             "data": "servis_durum",
             "render": function (data, type, row) {
                 const durumAd = row.servis_durum ? row.servis_durum.ad : 'Bilinmiyor';
-                const assignedPersonnelName = row.assignedPersonnelName || 'Belirlenmedi';
                 const assignedPersonnelId = row.assignedPersonnelId;
+                const assignedPersonnelName = (row.assignedPersonnelName && row.assignedPersonnelName !== 'Belirlenmedi')
+                    ? row.assignedPersonnelName
+                    : '';
+                const hasAssignedTechnician = !!assignedPersonnelId && !!assignedPersonnelName;
                 const logAd = row.lastLogAciklama || '';
                 const gidisTarihi = row.tarih
                     ? new Date(row.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -241,9 +244,10 @@ $(document).ready(function() {
                         .trim() || '-';
                 }
 
-                let personnelHtml = assignedPersonnelName;
-                if (assignedPersonnelId) {
-                    personnelHtml = '<a href="/personeller/' + assignedPersonnelId + '/profil" class="teknisyen-profile-link text-decoration-none">' + assignedPersonnelName + '</a>';
+                let teknisyenLine = '';
+                if (hasAssignedTechnician) {
+                    const personnelHtml = '<a href="/personeller/' + assignedPersonnelId + '/profil" class="teknisyen-profile-link text-decoration-none">' + assignedPersonnelName + '</a>';
+                    teknisyenLine = '<small class="fs-11 fw-normal text-muted d-block durum-teknisyen">Teknisyen : ' + personnelHtml + '</small>';
                 }
 
                 if (showLastLog) {
@@ -251,7 +255,7 @@ $(document).ready(function() {
                            '<small class="fs-11 fw-normal text-muted d-block durum-log">' + lastLogText + '</small>';
                 }
                 return '<div class="fw-bold">' + durumAd + '</div>' +
-                       '<small class="fs-11 fw-normal text-muted d-block durum-teknisyen">Teknisyen : ' + personnelHtml + '</small>' +
+                       teknisyenLine +
                        '<small class="fs-11 fw-normal text-muted d-block">Gidiş Tarihi : ' + gidisTarihi + '</small>';
             }
         }
