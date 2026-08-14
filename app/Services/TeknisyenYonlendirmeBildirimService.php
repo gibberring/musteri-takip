@@ -15,6 +15,11 @@ class TeknisyenYonlendirmeBildirimService
 
     public const SETTING_SABLON = 'whatsapp_teknisyen_yonlendirme_sablon';
 
+    private static function deepLinkUrlPattern(): string
+    {
+        return '~https?://[^\s\]\)\'"<>]+/servisler(?:\#servis-\d+)?~i';
+    }
+
     /**
      * Görüldü sıfırla + teknisyene WhatsApp bildirimi gönder (yalnızca yapılandırılmış API).
      *
@@ -128,8 +133,23 @@ class TeknisyenYonlendirmeBildirimService
 
     public function buildDeepLink(int $servisId): string
     {
+        // Daima bu kurulumun APP_URL host'u — istek Host'u veya başka sitenin domain'i kullanılmaz.
         $base = rtrim((string) config('app.url'), '/');
+        if ($base === '') {
+            $base = rtrim((string) url('/'), '/');
+        }
+
         return $base . '/servisler#servis-' . $servisId;
+    }
+
+    /**
+     * Şablona yapıştırılmış sabit https://.../servisler[#servis-id] adreslerini [link] yapar.
+     */
+    public function sanitizeTemplate(string $template): string
+    {
+        $sanitized = preg_replace(self::deepLinkUrlPattern(), '[link]', $template);
+
+        return $sanitized ?? $template;
     }
 
     public function normalizePhone(?string $phone): ?string
@@ -188,7 +208,9 @@ class TeknisyenYonlendirmeBildirimService
     public function getTemplate(): string
     {
         $saved = trim((string) AppSetting::getValue(self::SETTING_SABLON, ''));
-        return $saved !== '' ? $saved : self::defaultTemplate();
+        $template = $saved !== '' ? $saved : self::defaultTemplate();
+
+        return $this->sanitizeTemplate($template);
     }
 
     public function buildMessage(Servis $servis, ?Personel $teknisyen = null): string
@@ -197,7 +219,18 @@ class TeknisyenYonlendirmeBildirimService
         $map = $this->buildPlaceholderMap($servis, $teknisyen);
         $template = $this->getTemplate();
 
-        return strtr($template, $map);
+        return $this->ensureSiteDeepLinks(strtr($template, $map), (int) $servis->id);
+    }
+
+    /**
+     * Mesajdaki /servisler deep-link'lerini bu sitenin APP_URL + doğru servis id'sine çevirir.
+     */
+    private function ensureSiteDeepLinks(string $message, int $servisId): string
+    {
+        $own = $this->buildDeepLink($servisId);
+        $rewritten = preg_replace(self::deepLinkUrlPattern(), $own, $message);
+
+        return $rewritten ?? $message;
     }
 
     /**

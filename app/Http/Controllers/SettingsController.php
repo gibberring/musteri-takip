@@ -235,10 +235,6 @@ class SettingsController extends Controller
         }
 
         $svc = app(\App\Services\TeknisyenYonlendirmeBildirimService::class);
-        $savedSablon = (string) \App\Models\AppSetting::getValue(
-            \App\Services\TeknisyenYonlendirmeBildirimService::SETTING_SABLON,
-            ''
-        );
 
         return response()->json([
             'success' => true,
@@ -246,8 +242,9 @@ class SettingsController extends Controller
             'api_key' => \App\Models\AppSetting::getValue('whatsapp_api_key', ''),
             'default_number' => \App\Models\AppSetting::getValue('whatsapp_default_number', ''),
             'sender_name' => \App\Models\AppSetting::getValue('whatsapp_sender_name', ''),
-            'teknisyen_sablon' => $savedSablon !== '' ? $savedSablon : $svc->getTemplate(),
+            'teknisyen_sablon' => $svc->getTemplate(),
             'default_teknisyen_sablon' => \App\Services\TeknisyenYonlendirmeBildirimService::defaultTemplate(),
+            'ornek_link' => $svc->buildDeepLink(12345),
             'placeholders' => \App\Services\TeknisyenYonlendirmeBildirimService::availablePlaceholders(),
         ]);
     }
@@ -265,7 +262,8 @@ class SettingsController extends Controller
         \App\Models\AppSetting::setValue('whatsapp_sender_name', trim((string) $request->input('sender_name', '')));
 
         if ($request->has('teknisyen_sablon')) {
-            $sablon = (string) $request->input('teknisyen_sablon', '');
+            $svc = app(\App\Services\TeknisyenYonlendirmeBildirimService::class);
+            $sablon = $svc->sanitizeTemplate((string) $request->input('teknisyen_sablon', ''));
             // Boş kayıt = varsayılana dön (DB'den silmek yerine boş string tutma)
             \App\Models\AppSetting::setValue(
                 \App\Services\TeknisyenYonlendirmeBildirimService::SETTING_SABLON,

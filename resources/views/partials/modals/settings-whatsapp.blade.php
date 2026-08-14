@@ -38,6 +38,7 @@
                 <textarea class="form-control form-control-sm font-monospace" id="waTeknisyenSablon" rows="8" spellcheck="false" placeholder="Mesaj şablonu..."></textarea>
                 <div class="form-text small mt-1">
                     Köşeli parantezli etiketler gönderimde otomatik doldurulur. Boş alanlar <code>-</code> olur.
+                    <code>[link]</code> her zaman bu sitenin kendi adresini basar; başka domain yapıştırmayın.
                 </div>
                 <div class="mt-2" id="waPlaceholderHelp">
                     <div class="small text-muted mb-1">Kullanılabilir etiketler (tıklayınca eklenir):</div>
