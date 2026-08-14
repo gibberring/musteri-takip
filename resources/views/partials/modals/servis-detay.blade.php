@@ -86,6 +86,11 @@
                                             <b class="me-2">Mevcut Durum:</b> 
                                             <div id="modalMevcutDurumWrapper" class="d-inline-block"></div>
                                         </div> <!-- Eklendi -->
+
+                                        <div class="d-flex align-items-center mt-2" id="modalTeknisyenGorulduRow">
+                                            <i class="feather feather-user-check me-2" id="modalTeknisyenGorulduIcon" style="font-size:1rem;"></i>
+                                            <span id="modalTeknisyenGorulduText" class="small text-muted">—</span>
+                                        </div>
                                                                              
                                     </div>
                                 </div>

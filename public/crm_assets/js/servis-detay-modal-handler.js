@@ -81,6 +81,10 @@
             $('#modalOperatorNotu').text(loading);
 
             $('#modalMevcutDurumWrapper').html('<span class="badge bg-secondary">' + loading + '</span>');
+            try {
+                $('#modalTeknisyenGorulduIcon').removeClass('text-success text-muted').addClass('text-muted');
+                $('#modalTeknisyenGorulduText').removeClass('text-success text-muted').addClass('text-muted').text(loading);
+            } catch (eGor) { /* no-op */ }
             $('#modalIslemLoglariBody').html('<tr><td colspan="5" class="text-center text-muted">' + loading + '</td></tr>');
             $('#modalKasaHareketleriBody').html('<tr><td colspan="7" class="text-center text-muted">' + loading + '</td></tr>');
 
@@ -110,6 +114,31 @@
             window.currentServisTahsilEdenName = '-';
         } catch (e) { /* no-op */ }
     }
+
+    window.applyTeknisyenGorulduUi = function(data) {
+        try {
+            var $icon = $('#modalTeknisyenGorulduIcon');
+            var $text = $('#modalTeknisyenGorulduText');
+            if (!$icon.length || !$text.length) return;
+            var raw = data && (data.teknisyen_goruldu_at || data.teknisyenGorulduAt);
+            if (raw) {
+                var label = 'Görüldü';
+                try {
+                    var d = new Date(raw);
+                    if (!isNaN(d.getTime())) {
+                        var tarih = d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        var saat = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                        label = 'Görüldü · ' + tarih + ' ' + saat;
+                    }
+                } catch (eFmt) { /* keep default */ }
+                $icon.removeClass('text-muted').addClass('text-success');
+                $text.removeClass('text-muted').addClass('text-success').text(label);
+            } else {
+                $icon.removeClass('text-success').addClass('text-muted');
+                $text.removeClass('text-success').addClass('text-muted').text('Teknisyen henüz görmedi');
+            }
+        } catch (e) { /* no-op */ }
+    };
 
     function applyServisDetayModalData(data) {
             if (!data) return;
@@ -257,6 +286,10 @@
                 else badgeClass += ' bg-soft-danger text-danger';
                 $('#modalMevcutDurumWrapper').html(data.mevcutDurumAdi ? `<span class="${badgeClass}">${data.mevcutDurumAdi}</span>` : '<span class="badge bg-secondary">Bilinmiyor</span>');
             })();
+
+            if (typeof window.applyTeknisyenGorulduUi === 'function') {
+                window.applyTeknisyenGorulduUi(data);
+            }
 
             // Giriş yapan kullanıcının pozisyonunu globalde tut (aksiyon ikonları için)
             if (typeof data.loggedInUserPozId !== 'undefined') {
@@ -711,6 +744,25 @@
                 } else {
                     $('#modalMevcutDurumWrapper').html('<span class="badge bg-secondary">Bilinmiyor</span>');
                 }
+                if (typeof window.applyTeknisyenGorulduUi === 'function') {
+                    window.applyTeknisyenGorulduUi(g);
+                }
+                try {
+                    var tw = response.teknisyen_whatsapp;
+                    if (tw && tw.sent) {
+                        // API ile sessiz otomatik gönderildi
+                    } else if (tw && !tw.sent && window.Swal) {
+                        var errMsg = (tw.error && String(tw.error).trim())
+                            ? String(tw.error)
+                            : 'WhatsApp API ayarlı değil veya mesaj gönderilemedi.';
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'WhatsApp gönderilemedi',
+                            text: errMsg,
+                            confirmButtonText: 'Tamam'
+                        });
+                    }
+                } catch (eWa) { /* no-op */ }
                 // Formu sıfırla
                 $('#modalDurumGuncelleSelect').val('');
                 $('#modalDinamikFormAlani').empty();
@@ -723,6 +775,9 @@
                         try {
                             window.currentServisMevcutDurumId = (data.mevcutDurumId !== undefined && data.mevcutDurumId !== null) ? String(data.mevcutDurumId) : '';
                         } catch (e) { /* no-op */ }
+                        if (typeof window.applyTeknisyenGorulduUi === 'function') {
+                            window.applyTeknisyenGorulduUi(data);
+                        }
                         if (typeof window.populateServisDurumDropdown === 'function') {
                             window.populateServisDurumDropdown(data.mevcutDurumId, data.mevcutDurumAdi, data.tumDurumlar || []);
                         }

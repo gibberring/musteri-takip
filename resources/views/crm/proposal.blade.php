@@ -106,6 +106,12 @@
             #operatorBitisTarihMobile,
             #teknisyenPersonelMobile,
             #teknisyenPersonelMobile option,
+            #teknisyenMarkaMobile,
+            #teknisyenMarkaMobile option,
+            #teknisyenCihazMobile,
+            #teknisyenCihazMobile option,
+            #teknisyenSehirMobile,
+            #teknisyenSehirMobile option,
             #teknisyenBaslangicTarihMobile,
             #teknisyenBitisTarihMobile {
                 font-size: 10px !important;
@@ -597,6 +603,45 @@
                                 </select>
                             </div>
                             <div class="mb-3">
+                                <label for="teknisyenMarka" class="form-label fw-semibold">Marka</label>
+                                <select class="form-select form-select-sm" id="teknisyenMarka">
+                                    <option selected value="">Tüm Markalar</option>
+                                    @if(isset($markalar) && $markalar->count() > 0)
+                                        @foreach($markalar as $marka)
+                                            <option value="{{ $marka->id }}">{{ $marka->ad }}</option>
+                                        @endforeach
+                                    @else
+                                        <option disabled>Marka bulunamadı</option>
+                                    @endif
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="teknisyenCihaz" class="form-label fw-semibold">Cihaz</label>
+                                <select class="form-select form-select-sm" id="teknisyenCihaz">
+                                    <option selected value="">Tüm Cihazlar</option>
+                                    @if(isset($cihazTurleri) && $cihazTurleri->count() > 0)
+                                        @foreach($cihazTurleri as $tur)
+                                            <option value="{{ $tur->id }}">{{ $tur->ad }}</option>
+                                        @endforeach
+                                    @else
+                                        <option disabled>Cihaz bulunamadı</option>
+                                    @endif
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="teknisyenSehir" class="form-label fw-semibold">Şehir</label>
+                                <select class="form-select form-select-sm" id="teknisyenSehir">
+                                    <option selected value="">Tüm Şehirler</option>
+                                    @if(isset($iller) && $iller->count() > 0)
+                                        @foreach($iller as $il)
+                                            <option value="{{ $il->id }}">{{ $il->ad }}</option>
+                                        @endforeach
+                                    @else
+                                        <option disabled>Şehir bulunamadı</option>
+                                    @endif
+                                </select>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label fw-semibold">Gidiş Tarih Aralığı</label>
                                 <div class="input-group input-group-sm">
                                     <input type="date" class="form-control" id="teknisyenBaslangicTarih" placeholder="Başlangıç" value="{{ date('Y-m-d') }}">
@@ -764,6 +809,45 @@
                                 @endforeach
                             @else
                                 <option disabled>Teknisyen bulunamadı</option>
+                            @endif
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="teknisyenMarkaMobile" class="form-label fw-semibold">Marka</label>
+                        <select class="form-select form-select-sm mobile-filter-select" id="teknisyenMarkaMobile">
+                            <option selected value="">Tüm Markalar</option>
+                            @if(isset($markalar) && $markalar->count() > 0)
+                                @foreach($markalar as $marka)
+                                    <option value="{{ $marka->id }}">{{ $marka->ad }}</option>
+                                @endforeach
+                            @else
+                                <option disabled>Marka bulunamadı</option>
+                            @endif
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="teknisyenCihazMobile" class="form-label fw-semibold">Cihaz</label>
+                        <select class="form-select form-select-sm mobile-filter-select" id="teknisyenCihazMobile">
+                            <option selected value="">Tüm Cihazlar</option>
+                            @if(isset($cihazTurleri) && $cihazTurleri->count() > 0)
+                                @foreach($cihazTurleri as $tur)
+                                    <option value="{{ $tur->id }}">{{ $tur->ad }}</option>
+                                @endforeach
+                            @else
+                                <option disabled>Cihaz bulunamadı</option>
+                            @endif
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="teknisyenSehirMobile" class="form-label fw-semibold">Şehir</label>
+                        <select class="form-select form-select-sm mobile-filter-select" id="teknisyenSehirMobile">
+                            <option selected value="">Tüm Şehirler</option>
+                            @if(isset($iller) && $iller->count() > 0)
+                                @foreach($iller as $il)
+                                    <option value="{{ $il->id }}">{{ $il->ad }}</option>
+                                @endforeach
+                            @else
+                                <option disabled>Şehir bulunamadı</option>
                             @endif
                         </select>
                     </div>
@@ -1379,9 +1463,15 @@
         // Sayfa yüklendiğinde ve stiller uygulandığında içeriği göster
         $(document).ready(function() {
             $('#mainContentWrapper').css('display', 'block');
-            // Genelkasa vb. sayfalardan ?open_servis_id= ile gelindiyse önce erişim kontrolü, sonra modal aç
+            // Genelkasa vb. sayfalardan ?open_servis_id= veya #servis-{id} ile gelindiyse önce erişim kontrolü, sonra modal aç
             var params = new URLSearchParams(window.location.search);
             var openServisId = (params.get('open_servis_id') || '').trim();
+            if (!openServisId && window.location.hash) {
+                var hashMatch = String(window.location.hash).match(/^#servis-(\d+)/i);
+                if (hashMatch) {
+                    openServisId = hashMatch[1];
+                }
+            }
             if (openServisId !== '') {
                 history.replaceState({}, document.title, window.location.pathname);
                 $.ajax({
@@ -1390,10 +1480,14 @@
                     success: function() {
                         $('#servisDetayModal').data('servis-id', openServisId);
                         if (typeof window.mevcutServisId !== 'undefined') { window.mevcutServisId = openServisId; }
-                        var modalEl = document.getElementById('servisDetayModal');
-                        if (modalEl && window.bootstrap && window.bootstrap.Modal) {
-                            var modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
-                            modalInstance.show();
+                        if (typeof window.openServisDetay === 'function') {
+                            window.openServisDetay(openServisId);
+                        } else {
+                            var modalEl = document.getElementById('servisDetayModal');
+                            if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+                                var modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+                                modalInstance.show();
+                            }
                         }
                     },
                     error: function(xhr) {

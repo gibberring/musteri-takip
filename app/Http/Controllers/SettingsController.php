@@ -226,6 +226,81 @@ class SettingsController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Bölge ayarları kaydedildi.']);
     }
+
+    public function whatsappSettingsGet()
+    {
+        $user = Auth::user();
+        if (!$user || (int) $user->poz_id !== 1071) {
+            return response()->json(['success' => false, 'message' => 'Yetkisiz işlem.'], 403);
+        }
+
+        $svc = app(\App\Services\TeknisyenYonlendirmeBildirimService::class);
+        $savedSablon = (string) \App\Models\AppSetting::getValue(
+            \App\Services\TeknisyenYonlendirmeBildirimService::SETTING_SABLON,
+            ''
+        );
+
+        return response()->json([
+            'success' => true,
+            'api_url' => \App\Models\AppSetting::getValue('whatsapp_api_url', ''),
+            'api_key' => \App\Models\AppSetting::getValue('whatsapp_api_key', ''),
+            'default_number' => \App\Models\AppSetting::getValue('whatsapp_default_number', ''),
+            'sender_name' => \App\Models\AppSetting::getValue('whatsapp_sender_name', ''),
+            'teknisyen_sablon' => $savedSablon !== '' ? $savedSablon : $svc->getTemplate(),
+            'default_teknisyen_sablon' => \App\Services\TeknisyenYonlendirmeBildirimService::defaultTemplate(),
+            'placeholders' => \App\Services\TeknisyenYonlendirmeBildirimService::availablePlaceholders(),
+        ]);
+    }
+
+    public function whatsappSettingsSave(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || (int) $user->poz_id !== 1071) {
+            return response()->json(['success' => false, 'message' => 'Yetkisiz işlem.'], 403);
+        }
+
+        \App\Models\AppSetting::setValue('whatsapp_api_url', trim((string) $request->input('api_url', '')));
+        \App\Models\AppSetting::setValue('whatsapp_api_key', trim((string) $request->input('api_key', '')));
+        \App\Models\AppSetting::setValue('whatsapp_default_number', trim((string) $request->input('default_number', '')));
+        \App\Models\AppSetting::setValue('whatsapp_sender_name', trim((string) $request->input('sender_name', '')));
+
+        if ($request->has('teknisyen_sablon')) {
+            $sablon = (string) $request->input('teknisyen_sablon', '');
+            // Boş kayıt = varsayılana dön (DB'den silmek yerine boş string tutma)
+            \App\Models\AppSetting::setValue(
+                \App\Services\TeknisyenYonlendirmeBildirimService::SETTING_SABLON,
+                trim($sablon)
+            );
+        }
+
+        return response()->json(['success' => true, 'message' => 'WhatsApp API ayarları kaydedildi.']);
+    }
+
+    public function whatsappSettingsTest(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user || (int) $user->poz_id !== 1071) {
+            return response()->json(['success' => false, 'message' => 'Yetkisiz işlem.'], 403);
+        }
+
+        $to = trim((string) $request->input('to', ''));
+        $msg = trim((string) $request->input('message', 'Servisbirim WhatsApp test mesajı'));
+        if ($to === '') {
+            return response()->json(['success' => false, 'message' => 'Alıcı numara gerekli.'], 422);
+        }
+
+        $svc = app(\App\Services\TeknisyenYonlendirmeBildirimService::class);
+        $result = $svc->sendTestMessage($to, $msg);
+
+        if (!empty($result['sent'])) {
+            return response()->json(['success' => true, 'message' => 'Test mesajı gönderildi.', 'mode' => $result['mode'] ?? null]);
+        }
+
+        return response()->json([
+            'success' => false,
+            'message' => $result['error'] ?? 'WhatsApp API ayarlı değil / gönderilemedi.',
+        ], 422);
+    }
 }
 
 

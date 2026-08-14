@@ -32,6 +32,7 @@ use App\Models\RoleAbility;
 use App\Models\ServisResmi; // Resim modeli eklendi
 use App\Models\Announcement;
 use App\Models\SettingsAuditLog;
+use App\Services\TeknisyenYonlendirmeBildirimService;
 
 class ServisController extends Controller
 {
@@ -221,6 +222,16 @@ class ServisController extends Controller
                     });
                 }
 
+                // Marka filtresi
+                if ($request->filled('marka_id') && $request->marka_id !== '') {
+                    $ajaxQuery->where('servisler.marka_id', $request->marka_id);
+                }
+
+                // Cihaz türü filtresi
+                if ($request->filled('cihaz_tur_id') && $request->cihaz_tur_id !== '') {
+                    $ajaxQuery->where('servisler.cihaz_tur_id', $request->cihaz_tur_id);
+                }
+
                 // Personel filtresi (operatör/teknisyen ayrımı)
                 if ($request->filled('personel_id') && $request->personel_id !== '') {
                     $filterType = (string) $request->input('personel_filter_type', '');
@@ -345,6 +356,8 @@ class ServisController extends Controller
 
                 Log::info('ServisController@index AJAX isteği için filtreli veri çekildi.', [
                     'il_id' => $request->input('il_id'),
+                    'marka_id' => $request->input('marka_id'),
+                    'cihaz_tur_id' => $request->input('cihaz_tur_id'),
                     'personel_id' => $request->input('personel_id'),
                     'servis_durum_id' => $request->input('servis_durum_id'),
                     'baslangic_tarih' => $request->input('baslangic_tarih'),
@@ -952,6 +965,19 @@ class ServisController extends Controller
                 return $resp;
             }
         }
+
+        // Atanan teknisyen kendi yönlendirilmiş işinin detayını açınca görüldü işaretle
+        if (
+            $user
+            && (int) $user->id === (int) ($servis->personel_id ?? 0)
+            && (int) $servis->servis_durum_id === TeknisyenYonlendirmeBildirimService::DURUM_TEKNISYEN_YONLENDIRILDI
+            && empty($servis->teknisyen_goruldu_at)
+        ) {
+            $servis->teknisyen_goruldu_at = Carbon::now();
+            $servis->teknisyen_goruldu_personel_id = (int) $user->id;
+            $servis->save();
+        }
+
         // İlişkileri yükle
         $servis->load([
             'musteri' => function ($query) { // İlişkiyi detaylandırarak yükle
@@ -1016,6 +1042,10 @@ class ServisController extends Controller
             if ($ilkLog && $ilkLog->personel) { $olusturanAd = $ilkLog->personel->ad; $olusturanId = $ilkLog->personel->id; }
         }
         $responseData['olusturan_personel'] = $olusturanAd ? ['id' => $olusturanId, 'ad' => $olusturanAd] : null;
+        $responseData['teknisyen_goruldu_at'] = $servis->teknisyen_goruldu_at
+            ? $servis->teknisyen_goruldu_at->toIso8601String()
+            : null;
+        $responseData['teknisyen_goruldu_personel_id'] = $servis->teknisyen_goruldu_personel_id;
 
         // Hata ayıklama için
         // return response()->json($servis);
@@ -1112,7 +1142,7 @@ class ServisController extends Controller
             }
 
             // Transaction başlat
-            return DB::transaction(function () use ($servis, $yeniDurum, $mevcutDurum, $request) {
+            return DB::transaction(function () use ($servis, $yeniDurum, $mevcutDurum, $request, $teknisyenYonlendirildiDurumId) {
                 // Durumu güncelle
                 $servis->servis_durum_id = $yeniDurum;
                 $servis->save();
@@ -1287,12 +1317,28 @@ class ServisController extends Controller
                         $query->with(['personel:id,ad', 'servisDurum:id,ad'])->orderBy('id', 'desc');
                     }
                 ]);
+
+                $teknisyenWhatsapp = null;
+                if ((int) $yeniDurum === (int) $teknisyenYonlendirildiDurumId) {
+                    $teknisyenWhatsapp = app(TeknisyenYonlendirmeBildirimService::class)
+                        ->handleYonlendirme($freshServis ?: $servis);
+                    $freshServis = $servis->fresh([
+                        'servisDurum',
+                        'personel',
+                        'musteri',
+                        'islemloglari' => function ($query) {
+                            $query->with(['personel:id,ad', 'servisDurum:id,ad'])->orderBy('id', 'desc');
+                        }
+                    ]);
+                }
+
                 $freshData = $freshServis->toArray();
                 $this->enrichIslemLoglari($freshData);
                 return response()->json([
                     'success' => true,
                     'message' => 'Durum başarıyla güncellendi.',
-                    'servis' => $freshData
+                    'servis' => $freshData,
+                    'teknisyen_whatsapp' => $teknisyenWhatsapp,
                 ]);
             });
 

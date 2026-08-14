@@ -13,6 +13,10 @@ class Servis extends Model
 
     protected $table = 'servisler'; // Tablo adı belirtildi
 
+    protected $casts = [
+        'teknisyen_goruldu_at' => 'datetime',
+    ];
+
     // protected $fillable = []; // Gerekirse doldurulacak alanları buraya ekleyebilirsiniz
     protected $fillable = [
         // Sadece modal'daki cihaz bilgileri güncellemesinde kullanılan alanlar:
@@ -30,6 +34,8 @@ class Servis extends Model
         'servis_durum_id',
         'personel_id',
         'olusturan_personel_id',
+        'teknisyen_goruldu_at',
+        'teknisyen_goruldu_personel_id',
         'tarih', // Veritabanı sütun adı varsayımı
         'saat',  // Veritabanı sütun adı varsayımı
         'operator_not', // 'aciklama' yerine doğru sütun adı

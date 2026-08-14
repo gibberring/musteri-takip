@@ -160,3 +160,7 @@ Route::delete('/ayarlar/cihaz-turleri/{id}', [SettingsController::class, 'cihazT
 // Ayarlar: Bölge Ayarları (aktif il/ilçe)
 Route::get('/ayarlar/bolge', [SettingsController::class, 'regionsIndex'])->name('settings.regions.index')->middleware('auth');
 Route::post('/ayarlar/bolge', [SettingsController::class, 'regionsSave'])->name('settings.regions.save')->middleware('auth');
+
+Route::get('/ayarlar/whatsapp', [SettingsController::class, 'whatsappSettingsGet'])->name('settings.whatsapp.get')->middleware('auth');
+Route::post('/ayarlar/whatsapp', [SettingsController::class, 'whatsappSettingsSave'])->name('settings.whatsapp.save')->middleware('auth');
+Route::post('/ayarlar/whatsapp/test', [SettingsController::class, 'whatsappSettingsTest'])->name('settings.whatsapp.test')->middleware('auth');

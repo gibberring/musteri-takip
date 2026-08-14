@@ -67,7 +67,10 @@
         </td>
         <td class="text-center no-print">
             @if(isset($isPatron) && $isPatron)
-                <input type="checkbox" class="kasa-checkbox" data-id="{{ $hareket->id }}">
+                <input type="checkbox" class="kasa-checkbox"
+                    data-id="{{ $hareket->id }}"
+                    data-kayit-tarihi="{{ $hareket->tarih ? Carbon::parse($hareket->tarih)->format('Y-m-d') : '' }}"
+                    data-islem-tarihi="{{ $hareket->islem_tarihi ? Carbon::parse($hareket->islem_tarihi)->format('Y-m-d') : '' }}">
             @endif
         </td>
     </tr>

@@ -6,6 +6,7 @@ use App\Models\Islemloglari;
 use App\Models\Servis;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
+use App\Services\TeknisyenYonlendirmeBildirimService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
@@ -23,12 +24,18 @@ class IslemLogController extends Controller
 
     private function syncServisPersonelFromLatestCevap(int $servisId): void
     {
-        $servisDurumId = (int) (Servis::where('id', $servisId)->value('servis_durum_id') ?? 0);
+        $servis = Servis::find($servisId);
+        if (!$servis) {
+            return;
+        }
+        $servisDurumId = (int) ($servis->servis_durum_id ?? 0);
         if ($servisDurumId !== 9098) {
             // Servis "Teknisyen Yönlendirildi" değilken personel_id'yi 9098 cevaplarından
             // güncellemek yanlış atamaya ve yeniden yönlendirmede kaydın arafta kalmasına yol açıyordu.
             return;
         }
+
+        $oldPersonelId = (int) ($servis->personel_id ?? 0);
 
         $latestCevap = ServisDurumCevap::where('soru_id', 13234)
             ->whereHas('durumCevap0', function ($q) use ($servisId) {
@@ -38,14 +45,27 @@ class IslemLogController extends Controller
             ->orderByDesc('id')
             ->first();
 
-        if ($latestCevap && $latestCevap->cevap) {
-            Servis::where('id', $servisId)->update([
-                'personel_id' => (int) $latestCevap->cevap,
-            ]);
-        } else {
-            Servis::where('id', $servisId)->update([
-                'personel_id' => null,
-            ]);
+        $newPersonelId = ($latestCevap && $latestCevap->cevap) ? (int) $latestCevap->cevap : 0;
+        $servis->personel_id = $newPersonelId > 0 ? $newPersonelId : null;
+        $servis->save();
+
+        if ($newPersonelId > 0 && $newPersonelId !== $oldPersonelId) {
+            try {
+                $wa = app(TeknisyenYonlendirmeBildirimService::class)
+                    ->handleYonlendirme($servis->fresh() ?: $servis, $newPersonelId);
+                if (empty($wa['sent'])) {
+                    Log::warning('İşlem logu teknisyen değişimi WhatsApp gönderilemedi', [
+                        'servis_id' => $servisId,
+                        'teknisyen_id' => $newPersonelId,
+                        'error' => $wa['error'] ?? null,
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('İşlem logu teknisyen değişimi WhatsApp hatası: ' . $e->getMessage(), [
+                    'servis_id' => $servisId,
+                    'teknisyen_id' => $newPersonelId,
+                ]);
+            }
         }
     }
 

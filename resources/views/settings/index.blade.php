@@ -395,6 +395,83 @@ $(document).on('click', '.cihaz-tur-sil', function(){
     .done(function(){ tr.remove(); })
     .fail(function(){ Swal && Swal.fire('Hata','Silinemedi','error'); });
 });
+
+// WhatsApp API ayarları
+var waDefaultTeknisyenSablon = '';
+function waRenderPlaceholderTags(list){
+    var $box = $('#waPlaceholderTags');
+    $box.empty();
+    (list || []).forEach(function(p){
+        var tag = p.tag || '';
+        var label = p.label || tag;
+        var $btn = $('<button type="button" class="btn btn-sm btn-light border wa-ph-tag"></button>');
+        $btn.attr('title', label).attr('data-tag', tag).text(tag);
+        $box.append($btn);
+    });
+}
+function waInsertAtCursor($ta, text){
+    var el = $ta.get(0);
+    if (!el) return;
+    var start = el.selectionStart || 0;
+    var end = el.selectionEnd || 0;
+    var val = $ta.val() || '';
+    $ta.val(val.slice(0, start) + text + val.slice(end));
+    var pos = start + text.length;
+    el.focus();
+    el.setSelectionRange(pos, pos);
+}
+$(document).on('show.bs.modal', '#whatsappApiModal', function(){
+    $.getJSON('{{ route('settings.whatsapp.get') }}', function(resp){
+        if (!resp || !resp.success) return;
+        $('#waApiUrl').val(resp.api_url || '');
+        $('#waApiKey').val(resp.api_key || '');
+        $('#waDefaultNumber').val(resp.default_number || '');
+        $('#waSenderName').val(resp.sender_name || '');
+        waDefaultTeknisyenSablon = resp.default_teknisyen_sablon || '';
+        $('#waTeknisyenSablon').val(resp.teknisyen_sablon || waDefaultTeknisyenSablon);
+        waRenderPlaceholderTags(resp.placeholders || []);
+    });
+});
+$(document).on('click', '#waSablonVarsayilanBtn', function(){
+    if (waDefaultTeknisyenSablon) {
+        $('#waTeknisyenSablon').val(waDefaultTeknisyenSablon);
+    }
+});
+$(document).on('click', '#waPlaceholderTags .wa-ph-tag', function(){
+    waInsertAtCursor($('#waTeknisyenSablon'), $(this).data('tag') || '');
+});
+$(document).on('click', '#waAyarKaydetBtn', function(){
+    var btn = $(this);
+    var old = btn.html();
+    btn.prop('disabled', true).html('Kaydediliyor...');
+    $.post('{{ route('settings.whatsapp.save') }}', {
+        api_url: $('#waApiUrl').val(),
+        api_key: $('#waApiKey').val(),
+        default_number: $('#waDefaultNumber').val(),
+        sender_name: $('#waSenderName').val(),
+        teknisyen_sablon: $('#waTeknisyenSablon').val(),
+        _token: $('meta[name="csrf-token"]').attr('content')
+    }).done(function(resp){
+        Swal && Swal.fire('Başarılı', (resp && resp.message) || 'Kaydedildi', 'success');
+    }).fail(function(xhr){
+        Swal && Swal.fire('Hata', (xhr.responseJSON && xhr.responseJSON.message) || 'Kaydedilemedi', 'error');
+    }).always(function(){ btn.prop('disabled', false).html(old); });
+});
+$(document).on('click', '#waTestBtn', function(){
+    var btn = $(this);
+    var old = btn.html();
+    btn.prop('disabled', true).html('...');
+    $.post('{{ route('settings.whatsapp.test') }}', {
+        to: $('#waTestTo').val(),
+        message: $('#waTestMsg').val() || 'Servisbirim WhatsApp test mesajı',
+        _token: $('meta[name="csrf-token"]').attr('content')
+    }).done(function(resp){
+        Swal && Swal.fire('Başarılı', (resp && resp.message) || 'Gönderildi', 'success');
+    }).fail(function(xhr){
+        var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'WhatsApp API ayarlı değil / gönderilemedi.';
+        Swal && Swal.fire('Hata', msg, 'error');
+    }).always(function(){ btn.prop('disabled', false).html(old); });
+});
 </script>
 @endpush
 

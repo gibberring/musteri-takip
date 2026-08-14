@@ -278,6 +278,8 @@ $(document).ready(function() {
                 delete d.bitis_tarih;
                 delete d.servis_durum_id;
                 delete d.personel_filter_type;
+                delete d.marka_id;
+                delete d.cihaz_tur_id;
 
                 if (window.crmData && window.crmData.pendingOnly) {
                     d.pending_only = 1;
@@ -298,6 +300,9 @@ $(document).ready(function() {
                 } else if (activeFilterType === 'teknisyen') {
                     d.personel_id = getVisibleFilterValue('#teknisyenPersonel', '#teknisyenPersonelMobile') || '';
                     d.personel_filter_type = 'teknisyen';
+                    d.marka_id = getVisibleFilterValue('#teknisyenMarka', '#teknisyenMarkaMobile') || '';
+                    d.cihaz_tur_id = getVisibleFilterValue('#teknisyenCihaz', '#teknisyenCihazMobile') || '';
+                    d.il_id = getVisibleFilterValue('#teknisyenSehir', '#teknisyenSehirMobile') || '';
                     var tekBas = getVisibleFilterValue('#teknisyenBaslangicTarih', '#teknisyenBaslangicTarihMobile');
                     var tekBit = getVisibleFilterValue('#teknisyenBitisTarih', '#teknisyenBitisTarihMobile');
                     if (tekBas) { d.baslangic_tarih = tekBas; }

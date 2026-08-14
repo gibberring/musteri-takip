@@ -8,6 +8,7 @@ use App\Models\Personel;
 use App\Models\Servis;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
+use App\Services\TeknisyenYonlendirmeBildirimService;
 use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -134,6 +135,23 @@ class ProcessYarinGidilecekReminders extends Command
                     'saat' => $now->format('H:i:s'),
                     'aciklama' => 'Teknisyen: ' . $teknisyenAd . '<br>Gidiş Tarihi: ' . $gidisTarihi,
                 ]);
+
+                try {
+                    $wa = app(TeknisyenYonlendirmeBildirimService::class)
+                        ->handleYonlendirme($servis->fresh() ?: $servis, $teknisyenId);
+                    if (empty($wa['sent'])) {
+                        Log::warning('Yarın Gidilecek WhatsApp otomatik gönderilemedi', [
+                            'servis_id' => $servis->id,
+                            'teknisyen_id' => $teknisyenId,
+                            'error' => $wa['error'] ?? null,
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::error('Yarın Gidilecek WhatsApp bildirimi hatası: ' . $e->getMessage(), [
+                        'servis_id' => $servis->id,
+                        'teknisyen_id' => $teknisyenId,
+                    ]);
+                }
 
                 $ann->processed_at = $now;
                 $ann->save();

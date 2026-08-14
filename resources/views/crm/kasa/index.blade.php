@@ -675,15 +675,18 @@
                 return;
             }
 
+            const confirmHtml = buildBulkGerceklesmeConfirmHtml(selectedKasaHareketleri, newGerceklesmeTarihi);
+
             Swal.fire({
-                title: 'Emin misiniz?',
-                text: `${selectedKasaHareketleri.length} adet kasa kaydının gerçekleşme tarihi ${newGerceklesmeTarihi} olarak güncellenecektir.`, // formatToDottedDate kullanıldı
+                title: 'Gerçekleşme tarihi güncellensin mi?',
+                html: confirmHtml,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#3085d6',
                 cancelButtonColor: '#d33',
                 confirmButtonText: 'Evet, Güncelle!',
-                cancelButtonText: 'İptal'
+                cancelButtonText: 'İptal',
+                width: '32rem'
             }).then((result) => {
                 console.log("Swal.fire sonucu: ", result); // Mevcut log
                 console.log("result.isConfirmed: ", result.isConfirmed); // Yeni detaylı log
@@ -1543,11 +1546,79 @@
 
     // Helper function to convert YYYY-MM-DD to DD.MM.YYYY - global kapsamda tanımlandı
     function formatToDottedDate(dateString) {
-        var parts = dateString.split('-');
+        if (!dateString) return '—';
+        var parts = String(dateString).substring(0, 10).split('-');
         if (parts.length === 3) {
             return parts[2] + '.' + parts[1] + '.' + parts[0];
         }
         return dateString;
+    }
+
+    /**
+     * Seçili satırlardan toplu gerçekleşme tarihi onay özeti (client-side).
+     * data-kayit-tarihi / data-islem-tarihi checkbox attr'larından okunur.
+     */
+    function buildBulkGerceklesmeConfirmHtml(selectedIds, newIsoDate) {
+        const newDotted = formatToDottedDate(newIsoDate);
+
+        const dist = {};
+        let differentIslemCount = 0;
+        let kayitMismatchCount = 0;
+
+        selectedIds.forEach(function(id) {
+            const $cb = $('.kasa-checkbox[data-id="' + id + '"]');
+            // attr kullan: jQuery .data() tarih stringlerini Date'e çevirebilir
+            const islem = ($cb.attr('data-islem-tarihi') || '').substring(0, 10);
+            const kayit = ($cb.attr('data-kayit-tarihi') || '').substring(0, 10);
+
+            const distKey = islem || '__yok__';
+            dist[distKey] = (dist[distKey] || 0) + 1;
+
+            if (!islem || islem !== newIsoDate) {
+                differentIslemCount++;
+            }
+            if (kayit && kayit !== newIsoDate) {
+                kayitMismatchCount++;
+            }
+        });
+
+        const distEntries = Object.keys(dist).map(function(key) {
+            return { key: key, count: dist[key] };
+        }).sort(function(a, b) { return b.count - a.count; });
+
+        const maxDistLines = 5;
+        let distHtml = '<ul style="text-align:left;margin:0.4rem 0 0;padding-left:1.2rem;font-size:0.9em;">';
+        distEntries.slice(0, maxDistLines).forEach(function(entry) {
+            const label = entry.key === '__yok__' ? '(tarih yok)' : formatToDottedDate(entry.key);
+            distHtml += '<li>' + label + ' — <strong>' + entry.count + '</strong> kayıt</li>';
+        });
+        if (distEntries.length > maxDistLines) {
+            distHtml += '<li>… ve ' + (distEntries.length - maxDistLines) + ' farklı tarih daha</li>';
+        }
+        distHtml += '</ul>';
+
+        let warnings = '';
+        if (differentIslemCount > 0) {
+            warnings += '<p style="text-align:left;margin:0.75rem 0 0;font-size:0.9em;color:#856404;">' +
+                'Bu işlem seçili kayıtların işlem (gerçekleşme) tarihini değiştirecek. ' +
+                'Seçili <strong>' + differentIslemCount + '</strong> kaydın mevcut işlem tarihi, yeni gerçekleşme tarihinden (' +
+                newDotted + ') farklı.' +
+                '</p>';
+        }
+        if (kayitMismatchCount > 0) {
+            warnings += '<p style="text-align:left;margin:0.5rem 0 0;font-size:0.9em;color:#721c24;background:#f8d7da;padding:0.5rem 0.65rem;border-radius:4px;">' +
+                'Seçili <strong>' + kayitMismatchCount + '</strong> kaydın kayıt tarihi, yeni gerçekleşme tarihinden (' +
+                newDotted + ') farklı.' +
+                '</p>';
+        }
+
+        return '<div style="text-align:left;">' +
+            '<p style="margin:0 0 0.5rem;"><strong>' + selectedIds.length + '</strong> adet seçili kasa kaydının gerçekleşme tarihi ' +
+            '<strong>' + newDotted + '</strong> olarak güncellenecektir.</p>' +
+            '<p style="margin:0.5rem 0 0;font-size:0.9em;color:#555;">Mevcut gerçekleşme tarihi dağılımı:</p>' +
+            distHtml +
+            warnings +
+            '</div>';
     }
 
 </script>
