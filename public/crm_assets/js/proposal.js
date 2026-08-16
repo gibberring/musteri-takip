@@ -38,11 +38,15 @@ $(document).ready(function() {
     // PERM: Sayfa üstündeki buton/dropdown görünürlükleri
     try {
         if (window.PERM && window.PERM.can) {
-            // Yeni Servis butonu
-            if (window.PERM.can.canCreateServis && window.PERM.can.canCreateServis()) {
+            // Yeni Servis butonu (Bugünkü İptaller sayfasında gizli)
+            if (
+                !(window.crmData && window.crmData.todayCancellationsOnly) &&
+                window.PERM.can.canCreateServis &&
+                window.PERM.can.canCreateServis()
+            ) {
                 $('#yeniServisAcBtn').show();
             } else {
-                $('#yeniServisAcBtn').hide();
+                $('#yeniServisAcBtn, #yeniServisAcBtnMobile').hide();
             }
             // Bölge filtresi (teknisyen görmez; masaüstü + mobil)
             if (window.PERM.can.canViewBolgeFilter && window.PERM.can.canViewBolgeFilter()) {
@@ -277,6 +281,7 @@ $(document).ready(function() {
             "type": "GET",
             "data": function (d) {
                 delete d.il_id;
+                delete d.ilce_id;
                 delete d.personel_id;
                 delete d.baslangic_tarih;
                 delete d.bitis_tarih;
@@ -287,6 +292,9 @@ $(document).ready(function() {
 
                 if (window.crmData && window.crmData.pendingOnly) {
                     d.pending_only = 1;
+                }
+                if (window.crmData && window.crmData.todayCancellationsOnly) {
+                    d.today_cancellations_only = 1;
                 }
                 if (activeFilterType === 'bolge') {
                     d.il_id = getVisibleFilterValue('#bolgeSehir', '#bolgeSehirMobile') || '';
@@ -307,6 +315,7 @@ $(document).ready(function() {
                     d.marka_id = getVisibleFilterValue('#teknisyenMarka', '#teknisyenMarkaMobile') || '';
                     d.cihaz_tur_id = getVisibleFilterValue('#teknisyenCihaz', '#teknisyenCihazMobile') || '';
                     d.il_id = getVisibleFilterValue('#teknisyenSehir', '#teknisyenSehirMobile') || '';
+                    d.ilce_id = getVisibleFilterValue('#teknisyenIlce', '#teknisyenIlceMobile') || '';
                     var tekBas = getVisibleFilterValue('#teknisyenBaslangicTarih', '#teknisyenBaslangicTarihMobile');
                     var tekBit = getVisibleFilterValue('#teknisyenBitisTarih', '#teknisyenBitisTarihMobile');
                     if (tekBas) { d.baslangic_tarih = tekBas; }
@@ -445,6 +454,42 @@ $(document).ready(function() {
     $('#teknisyenServisAraBtn, #teknisyenServisAraBtnMobile').on('click', function() {
         activeFilterType = 'teknisyen';
         servisListDataTable.ajax.reload(null, true);
+    });
+
+    // Teknisyen filtresi: Şehir → İlçe yükleme (/ilceler/{il_id})
+    function loadTeknisyenIlceler($sehirSelect, $ilceSelect) {
+        var selectedIlId = $sehirSelect.val();
+        $ilceSelect.prop('disabled', true).html('<option selected value="">Yükleniyor...</option>');
+        if (!selectedIlId) {
+            $ilceSelect.html('<option selected value="">Önce Şehir Seçiniz</option>');
+            return;
+        }
+        $.ajax({
+            url: '/ilceler/' + selectedIlId,
+            type: 'GET',
+            dataType: 'json',
+            success: function(data) {
+                $ilceSelect.empty().append('<option selected value="">Tüm İlçeler</option>');
+                if (data && data.length > 0) {
+                    $.each(data, function(key, ilce) {
+                        $ilceSelect.append('<option value="' + ilce.id + '">' + ilce.ad + '</option>');
+                    });
+                    $ilceSelect.prop('disabled', false);
+                } else {
+                    $ilceSelect.append('<option value="" disabled>İlçe bulunamadı</option>');
+                }
+            },
+            error: function() {
+                $ilceSelect.empty().append('<option selected value="">İlçe yüklenemedi</option>');
+            }
+        });
+    }
+
+    $('#teknisyenSehir').on('change', function() {
+        loadTeknisyenIlceler($(this), $('#teknisyenIlce'));
+    });
+    $('#teknisyenSehirMobile').on('change', function() {
+        loadTeknisyenIlceler($(this), $('#teknisyenIlceMobile'));
     });
 
     function runServisDurumFilter(){

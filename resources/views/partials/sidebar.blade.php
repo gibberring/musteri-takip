@@ -18,6 +18,7 @@
                     $patronPozisyonId = 1071; // Patron pozisyon ID'si
                     $bekleyenOdemeCount = null;
                     $bekleyenServisCount = null;
+                    $bugunkuIptalCount = null;
                     if ($loggedInUser && !in_array($loggedInUser->poz_id, [$operatorPozisyonId, $idariIslerPozisyonId])) {
                         try {
                             $bekleyenSorgu = \App\Models\Kasa::where('gerceklesme', 0)
@@ -49,6 +50,20 @@
                                 ->count();
                         } catch (\Throwable $e) {
                             $bekleyenServisCount = null;
+                        }
+                    }
+                    // Panel İptal kartı ile aynı: bugün created + durum 9104 + silinmemiş
+                    if ($loggedInUser && !in_array($loggedInUser->poz_id, [$operatorPozisyonId, $tsrnTeknisyenPozisyonId, $idariIslerPozisyonId])) {
+                        try {
+                            $bugunkuIptalCount = \App\Models\Servis::where('servis_durum_id', 9104)
+                                ->whereDate('created_at', \Carbon\Carbon::today())
+                                ->where(function($q) {
+                                    $q->where('silindi', '!=', 1)
+                                      ->orWhereNull('silindi');
+                                })
+                                ->count();
+                        } catch (\Throwable $e) {
+                            $bugunkuIptalCount = null;
                         }
                     }
                 @endphp
@@ -87,7 +102,7 @@
                     </a>
                 </li>
                 @endif
-                <li class="nxl-item {{ request()->is('servisler*') ? 'active' : '' }}">
+                <li class="nxl-item {{ request()->is('servisler*') && !request()->is('servisler/bekleyen-kayitlar') && !request()->is('servisler/bugunku-iptaller') ? 'active' : '' }}">
                     <a href="{{ url('/servisler') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-tool"></i></span>
                         <span class="nxl-mtext">SERVİSLER</span>
@@ -101,6 +116,19 @@
                             BEKLEYEN KAYITLAR
                             @if(!empty($bekleyenServisCount))
                                 <span class="badge bg-warning text-dark ms-1">{{ $bekleyenServisCount }}</span>
+                            @endif
+                        </span>
+                    </a>
+                </li>
+                @endif
+                @if ($loggedInUser && !in_array($loggedInUser->poz_id, [$operatorPozisyonId, $tsrnTeknisyenPozisyonId, $idariIslerPozisyonId]))
+                <li class="nxl-item {{ request()->is('servisler/bugunku-iptaller') ? 'active' : '' }}">
+                    <a href="{{ url('/servisler/bugunku-iptaller') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-x-circle"></i></span>
+                        <span class="nxl-mtext">
+                            BUGÜNKÜ İPTALLER
+                            @if(!empty($bugunkuIptalCount))
+                                <span class="badge bg-danger ms-1">{{ $bugunkuIptalCount }}</span>
                             @endif
                         </span>
                     </a>

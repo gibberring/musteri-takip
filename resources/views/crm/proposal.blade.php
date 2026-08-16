@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', ($pendingOnly ?? false) ? 'Bekleyen Kayıtlar' : 'Servis Listesi')
+@section('title', ($todayCancellationsOnly ?? false) ? 'Bugünkü İptaller' : (($pendingOnly ?? false) ? 'Bekleyen Kayıtlar' : 'Servis Listesi'))
 
 @push('page_specific_css')
     <link rel="stylesheet" type="text/css" href="{{ asset('crm_assets/vendors/css/dataTables.bs5.min.css') }}">
@@ -112,6 +112,8 @@
             #teknisyenCihazMobile option,
             #teknisyenSehirMobile,
             #teknisyenSehirMobile option,
+            #teknisyenIlceMobile,
+            #teknisyenIlceMobile option,
             #teknisyenBaslangicTarihMobile,
             #teknisyenBitisTarihMobile {
                 font-size: 10px !important;
@@ -499,16 +501,18 @@
     <div class="page-header">
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
-                <h5 class="m-b-10">{{ ($pendingOnly ?? false) ? 'Bekleyen Kayıtlar' : 'Servis Listesi' }}</h5>
+                <h5 class="m-b-10">{{ ($todayCancellationsOnly ?? false) ? 'Bugünkü İptaller' : (($pendingOnly ?? false) ? 'Bekleyen Kayıtlar' : 'Servis Listesi') }}</h5>
             </div>
         </div>
         <div class="page-header-right ms-auto d-none d-sm-block">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
+                    @if(!($todayCancellationsOnly ?? false))
                     <button type="button" id="yeniServisAcBtn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#yeniServisModal" style="display:none;">
                         <i class="feather-plus me-2"></i>
                         <span>YENİ SERVİS</span>
                     </button>
+                    @endif
                     {{-- YENİ BÖLGE SERVİSLERİ DROPDOWN BAŞLANGIÇ (teknisyen görmez) --}}
                     @php $hideBolge = isset($hideBolgeServisleri) ? $hideBolgeServisleri : (isset($loggedInUser) && $loggedInUser && (int) $loggedInUser->poz_id === $tsrnTeknisyenPozisyonId); @endphp
                     <div class="dropdown @if($hideBolge) d-none @endif" @if($hideBolge) style="display:none !important;" @endif>
@@ -642,6 +646,12 @@
                                 </select>
                             </div>
                             <div class="mb-3">
+                                <label for="teknisyenIlce" class="form-label fw-semibold">İlçe</label>
+                                <select class="form-select form-select-sm" id="teknisyenIlce" disabled>
+                                    <option selected value="">Önce Şehir Seçiniz</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label fw-semibold">Gidiş Tarih Aralığı</label>
                                 <div class="input-group input-group-sm">
                                     <input type="date" class="form-control" id="teknisyenBaslangicTarih" placeholder="Başlangıç" value="{{ date('Y-m-d') }}">
@@ -657,7 +667,7 @@
                     {{-- YENİ TEKNİSYEN SERVİSLERİ DROPDOWN BİTİŞ --}}
 
                     {{-- YENİ SERVİS DURUM DROPDOWN BAŞLANGIÇ --}}
-                    @if(!($pendingOnly ?? false))
+                    @if(!($pendingOnly ?? false) && !($todayCancellationsOnly ?? false))
                     <div class="dropdown" @if(isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) style="display:none;" @endif>
                         <button class="btn btn-outline-success dropdown-toggle" type="button" id="servisDurumDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="feather-activity me-2"></i> SERVİS DURUM
@@ -714,7 +724,7 @@
     </div>
     <div class="d-block d-sm-none mt-2">
         <div class="d-flex flex-wrap gap-2 justify-content-center">
-            @if(!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId)
+            @if(!($todayCancellationsOnly ?? false) && (!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId))
             <button type="button" id="yeniServisAcBtnMobile" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#yeniServisModal">
                 <span>YENİ SERVİS</span>
             </button>
@@ -852,6 +862,12 @@
                         </select>
                     </div>
                     <div class="mb-3">
+                        <label for="teknisyenIlceMobile" class="form-label fw-semibold">İlçe</label>
+                        <select class="form-select form-select-sm mobile-filter-select" id="teknisyenIlceMobile" disabled>
+                            <option selected value="">Önce Şehir Seçiniz</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-semibold">Gidiş Tarih Aralığı</label>
                         <div class="input-group input-group-sm">
                             <input type="date" class="form-control" id="teknisyenBaslangicTarihMobile" placeholder="Başlangıç" value="{{ date('Y-m-d') }}">
@@ -868,7 +884,7 @@
             {{-- YENİ TEKNİSYEN SERVİSLERİ DROPDOWN BİTİŞ --}}
 
             {{-- YENİ SERVİS DURUM DROPDOWN BAŞLANGIÇ --}}
-            @if(!($pendingOnly ?? false))
+            @if(!($pendingOnly ?? false) && !($todayCancellationsOnly ?? false))
             <div class="dropdown" @if(isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) style="display:none;" @endif>
                 <button class="btn btn-outline-success dropdown-toggle btn-sm" type="button" id="servisDurumDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="feather-activity me-1"></i> SERVİS DURUM
@@ -1517,6 +1533,7 @@
     <script>
         window.crmData = window.crmData || {};
         window.crmData.pendingOnly = {{ ($pendingOnly ?? false) ? 'true' : 'false' }};
+        window.crmData.todayCancellationsOnly = {{ ($todayCancellationsOnly ?? false) ? 'true' : 'false' }};
     </script>
     <script>
         // Cihaz Arızası / Şikayet için öneriler

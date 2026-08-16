@@ -36,26 +36,33 @@ class DeletedRecordsController extends Controller
     {
         $this->authorizePatron();
 
+        // Tüm silinen kayıtları limitsiz çekmek (özellikle işlem logları) 128MB PHP
+        // belleğini aşıp 500 veriyordu; audit sekmesiyle aynı üst sınır.
+        $listLimit = 500;
+
         $silinenServisler = Servis::with(['musteri', 'personel', 'servisDurum', 'silenKisi'])
             ->where('silindi', 1)
             ->orderByDesc('silinme_tarihi')
+            ->limit($listLimit)
             ->get();
 
         $silinenKasa = Kasa::with(['personel', 'ilgiliPersonel', 'odemeTuru', 'odemeSekli', 'servis', 'silenKisi'])
             ->where('silindi', 1)
             ->orderByDesc('silinme_tarihi')
+            ->limit($listLimit)
             ->get();
 
         $silinenIslemLoglari = Islemloglari::onlyDeleted()
             ->with(['personel', 'servis', 'servisDurum', 'silenKisi'])
             ->orderByDesc('silinme_tarihi')
+            ->limit($listLimit)
             ->get();
 
         $musteriIletisimGuncellemeleri = SettingsAuditLog::query()
             ->where('action', SettingsAuditLog::ACTION_MUSTERI_CONTACT_UPDATED)
             ->with(['personel:id,ad'])
             ->orderByDesc('id')
-            ->limit(500)
+            ->limit($listLimit)
             ->get();
 
         return view('settings.deleted-records', compact(

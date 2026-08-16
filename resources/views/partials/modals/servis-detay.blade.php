@@ -220,12 +220,16 @@
                 
                 @php
                     $loggedInUser = Auth::user();
-                    $patronPozisyonId = 1071; // Patron pozisyon ID'si
-                    $tsrnTeknisyenPozisyonId = 1077; // TŞRN Teknisyen pozisyon ID'si
+                    // permissions.js canAddResim varsayılanları: Patron, Muhasebe, TŞRN Teknisyen
+                    $canAddResim = $loggedInUser && \App\Models\RoleAbility::isAllowed(
+                        (int) $loggedInUser->poz_id,
+                        'canAddResim',
+                        [1071, 1080, 1077]
+                    );
                 @endphp
 
-                @if ($loggedInUser && ($loggedInUser->poz_id == $patronPozisyonId || $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId))
-                {{-- Resim Bilgileri Bölümü --}}
+                @if ($canAddResim)
+                {{-- Resim Bilgileri Bölümü (Personel ayarları → canAddResim) --}}
                 <div class="card mt-3"> <!-- Card Başlangıcı -->
                     <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center"> <!-- Card Header -->
                         <h6 class="mb-0">Resim Bilgileri</h6>
@@ -242,16 +246,17 @@
                 @endif
 
                 <!-- Modal Footer -->
-                @php
-                    $loggedInUser = Auth::user();
-                    $tsrnTeknisyenPozisyonId = 1077; // TŞRN Teknisyen pozisyon ID'si
-                @endphp
-
                 <div class="modal-footer" id="modalFooterNormal"> <!-- justify-content-end kaldırıldı -->
                     @php
                         $loggedInUser = Auth::user();
                         $tsrnTeknisyenPozisyonId = 1077; // TŞRN Teknisyen pozisyon ID'si
                         $operatorPozisyonId = 1073; // Operatör pozisyon ID'si
+                        // permissions.js canViewPdfFis varsayılanları: Patron, Muhasebe, İdari, Operatör, TŞRN Teknisyen
+                        $canViewPdfFis = $loggedInUser && \App\Models\RoleAbility::isAllowed(
+                            (int) $loggedInUser->poz_id,
+                            'canViewPdfFis',
+                            [1071, 1080, 1076, 1073, 1077]
+                        );
                     @endphp
 
                     @if ($loggedInUser && $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId && $loggedInUser->poz_id != $operatorPozisyonId)
@@ -259,9 +264,11 @@
                         <i class="feather feather-trash-2 me-1"></i>SERVİSİ SİL
                     </button>
                     @endif
+                    @if ($canViewPdfFis)
                     <button type="button" class="btn btn-sm btn-info shadow-sm" id="servisFisiPdfBtn" data-bs-toggle="modal" data-bs-target="#servisFisiModal">
                         <i class="feather feather-file-text me-1"></i>PDF FİŞ
                     </button>
+                    @endif
                     <button type="button" class="btn btn-sm btn-secondary shadow-sm" data-bs-dismiss="modal">
                         <i class="feather feather-x-circle me-1"></i>Kapat
                     </button>

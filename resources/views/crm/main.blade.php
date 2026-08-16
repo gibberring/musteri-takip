@@ -81,10 +81,10 @@
                         </div>
                         <div class="d-flex align-items-center justify-content-between">
                             <div class="fs-13 fw-semibold text-muted">İptal</div>
-                            <div class="d-flex align-items-center">
+                            <a href="{{ route('servisler.bugunkuIptaller') }}" class="d-flex align-items-center text-decoration-none" title="Bugünkü iptalleri listele">
                                 <span class="fs-12 text-dark">{{ $bugunMusteriIptalSayisi }}</span>
                                 <span class="fs-11 text-muted ms-1">({{ $bugunMusteriIptalOrani }}%)</span>
-                            </div>
+                            </a>
                         </div>
                         <div class="progress mt-3" style="height: 4px;">
                             <div class="progress-bar bg-danger" role="progressbar" style="width: {{ $bugunMusteriIptalOrani }}%" aria-valuenow="{{ $bugunMusteriIptalOrani }}" aria-valuemin="0" aria-valuemax="100"></div>
@@ -234,13 +234,13 @@
                                 </div>
                             </div>
                             <div class="col-lg-4">
-                                <div class="p-3 border border-dashed rounded">
+                                <a href="{{ route('servisler.bugunkuIptaller') }}" class="p-3 border border-dashed rounded d-block text-decoration-none" title="Bugünkü iptalleri listele">
                                     <div class="fs-12 text-muted mb-1">Bugün İptal Edilen</div>
                                     <h6 class="fw-bold text-dark">{{ $bugunIptalEdilenSayisi ?? 0 }}</h6>
                                     <div class="progress mt-2 ht-3">
                                         <div class="progress-bar bg-danger" role="progressbar" style="width: {{ ($bugunServisSayisi ?? 0) > 0 ? (($bugunIptalEdilenSayisi ?? 0) / ($bugunServisSayisi ?? 1)) * 100 : 0 }}%"></div>
                                     </div>
-                                </div>
+                                </a>
                             </div>
                             <div class="col-lg-4">
                                 <div class="p-3 border border-dashed rounded">

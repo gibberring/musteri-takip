@@ -149,8 +149,15 @@ class ServisController extends Controller
                 $searchValue = '';
             }
             $pendingOnly = (int) $request->input('pending_only', 0) === 1;
+            $todayCancellationsOnly = (int) $request->input('today_cancellations_only', 0) === 1;
             if ($pendingOnly) {
                 if (!$loggedInUser || !in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $operatorPozisyonId], true)) {
+                    abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
+                }
+            }
+            // Panel İptal kartı ile aynı roller: Operatör / Teknisyen / İdari İşler hariç
+            if ($todayCancellationsOnly) {
+                if (!$loggedInUser || in_array((int) $loggedInUser->poz_id, [$operatorPozisyonId, $tsrnTeknisyenPozisyonId, $hariciOperatorPozisyonId], true)) {
                     abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
                 }
             }
@@ -176,8 +183,15 @@ class ServisController extends Controller
                 $baseQuery->whereIn('servisler.servis_durum_id', [9097, 9334]);
             }
 
+            // Panel "İptal" kartı ile aynı mantık: bugün oluşturulan + durum 9104 (Müşteri İptal Etti)
+            if ($todayCancellationsOnly) {
+                $musteriIptalDurumId = 9104;
+                $baseQuery->where('servisler.servis_durum_id', $musteriIptalDurumId)
+                    ->whereDate('servisler.created_at', Carbon::today());
+            }
+
             // Eğer kullanıcı sadece kendi servislerini görebiliyorsa filtrele
-            if ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch) {
+            if ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch && !$todayCancellationsOnly) {
                 // Sadece "güncel" teknisyen yönlendirmesi (aynı mantık, korelasyon yok: önce servis
                 // bazında MAX(cevap.id), sonra JOIN ile eşle — count() ile sunucu şişmez.
                 $baseQuery->where('servisler.servis_durum_id', $teknisyenYonlendirildiStatusId)
@@ -215,10 +229,17 @@ class ServisController extends Controller
             if ($request->ajax() || $request->expectsJson()) {
                 $ajaxQuery = clone $baseQuery; // AJAX için temel sorguyu klonla
 
-                // Bölgeye özgü filtre (il_id gönderilmişse)
+                // Bölgeye / teknisyene özgü filtre (il_id gönderilmişse)
                 if ($request->filled('il_id') && $request->il_id !== '') {
                     $ajaxQuery->whereHas('musteri', function ($q) use ($request) {
                         $q->where('il_id', $request->il_id);
+                    });
+                }
+
+                // İlçe filtresi (teknisyen arama; boşsa uygulanmaz)
+                if ($request->filled('ilce_id') && $request->ilce_id !== '') {
+                    $ajaxQuery->whereHas('musteri', function ($q) use ($request) {
+                        $q->where('ilce_id', $request->ilce_id);
                     });
                 }
 
@@ -356,6 +377,7 @@ class ServisController extends Controller
 
                 Log::info('ServisController@index AJAX isteği için filtreli veri çekildi.', [
                     'il_id' => $request->input('il_id'),
+                    'ilce_id' => $request->input('ilce_id'),
                     'marka_id' => $request->input('marka_id'),
                     'cihaz_tur_id' => $request->input('cihaz_tur_id'),
                     'personel_id' => $request->input('personel_id'),
@@ -494,6 +516,7 @@ class ServisController extends Controller
                 'operatorPersonelleri', // Operatör personelleri
                 'teknisyenPersonelleri', // Teknisyen personelleri
                 'pendingOnly',
+                'todayCancellationsOnly',
                 'hideBolgeServisleri'
             ));
         } catch (\Exception $e) {
@@ -514,6 +537,8 @@ class ServisController extends Controller
                 'iller' => collect(), // Hata durumunda boş koleksiyon
                 'operatorPersonelleri' => collect(), // Hata durumunda boş koleksiyon
                 'teknisyenPersonelleri' => collect(), // Hata durumunda boş koleksiyon
+                'pendingOnly' => false,
+                'todayCancellationsOnly' => false,
                 'hideBolgeServisleri' => false
              ])->withErrors('Veriler yüklenirken bir sorun oluştu.');
         }
@@ -603,6 +628,16 @@ class ServisController extends Controller
     public function pendingIndex(Request $request)
     {
         $request->merge(['pending_only' => 1]);
+        return $this->index($request);
+    }
+
+    /**
+     * Bugün kaydedilip "Müşteri İptal Etti" (9104) durumundaki servisler.
+     * Panel genel bakış İptal kartı ile aynı sayım mantığı.
+     */
+    public function todayCancellationsIndex(Request $request)
+    {
+        $request->merge(['today_cancellations_only' => 1]);
         return $this->index($request);
     }
 
@@ -1569,6 +1604,17 @@ class ServisController extends Controller
         if ($resp = $this->ensureServisAccess($servis)) {
             return $resp;
         }
+
+        // Varsayılan: Patron / Muhasebe / İdari / Operatör / TŞRN Teknisyen (permissions.js canViewPdfFis ile aynı)
+        $canViewPdfFisDefaults = [1071, 1080, 1076, 1073, 1077];
+        $loggedInUser = Auth::user();
+        if (
+            !$loggedInUser
+            || !RoleAbility::isAllowed((int) $loggedInUser->poz_id, 'canViewPdfFis', $canViewPdfFisDefaults)
+        ) {
+            return response()->json(['success' => false, 'message' => 'Bu işlemi yapmaya yetkiniz bulunmamaktadır.'], 403);
+        }
+
         ob_start(); // Çıktı tamponlamasını başlat
 
         // ... (mevcut veri toplama ve $data dizisini oluşturma kodunuz) ...
@@ -1842,11 +1888,14 @@ class ServisController extends Controller
     public function uploadServisResmi(Request $request, Servis $servis)
     {
         $loggedInUser = Auth::user();
-        $patronPozisyonId = 1071;
         $tsrnTeknisyenPozisyonId = 1077;
+        // Varsayılan: Patron / Muhasebe / TŞRN Teknisyen (permissions.js canAddResim ile aynı)
+        $canAddResimDefaults = [1071, 1080, 1077];
 
-        // Sadece Patron veya TŞRN Teknisyen yetkisine sahip kullanıcıların resim yüklemesine izin ver
-        if (!$loggedInUser || ($loggedInUser->poz_id != $patronPozisyonId && $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId)) {
+        if (
+            !$loggedInUser
+            || !RoleAbility::isAllowed((int) $loggedInUser->poz_id, 'canAddResim', $canAddResimDefaults)
+        ) {
             return response()->json(['success' => false, 'message' => 'Bu işlemi yapmaya yetkiniz bulunmamaktadır.'], 403);
         }
         if ((int) $loggedInUser->poz_id === $tsrnTeknisyenPozisyonId && (int) $servis->personel_id !== (int) $loggedInUser->id) {

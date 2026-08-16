@@ -51,6 +51,7 @@ Route::get('/iller', [MusteriController::class, 'getIller'])->name('iller.get')-
 
 // Servis CRUD rotaları
 Route::get('/servisler/bekleyen-kayitlar', [ServisController::class, 'pendingIndex'])->middleware('auth')->name('servisler.pending');
+Route::get('/servisler/bugunku-iptaller', [ServisController::class, 'todayCancellationsIndex'])->middleware('auth')->name('servisler.bugunkuIptaller');
 Route::get('/servisler/operator-karsilastirma', [ServisController::class, 'operatorComparison'])->middleware('auth')->name('servisler.operatorComparison');
 Route::post('/servisler/operator-karsilastirma-data', [ServisController::class, 'operatorComparisonData'])->middleware('auth')->name('servisler.operatorComparison.data');
 Route::resource('servisler', ServisController::class)->middleware('auth');
