@@ -6,10 +6,12 @@ use App\Models\Islemloglari;
 use App\Models\Servis;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
+use App\Models\ServisDurumSoru;
 use App\Services\TeknisyenYonlendirmeBildirimService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class IslemLogController extends Controller
 {
@@ -119,6 +121,7 @@ class IslemLogController extends Controller
 
         try {
             $log = Islemloglari::notDeleted()->findOrFail($islemlog);
+            $oldDurumId = (int) ($log->servis_durum_id ?? 0);
             $payload = $request->only(['personel_id','servis_durum_id','aciklama','tarih','saat']);
             if (empty($payload['personel_id'])) {
                 $payload['personel_id'] = $log->islemi_yapan_personel_id; // değişiklik yoksa mevcut kalsın
@@ -128,15 +131,127 @@ class IslemLogController extends Controller
                 $payload['islemi_yapan_personel_id'] = $payload['personel_id'];
                 unset($payload['personel_id']);
             }
-            $log->update($payload);
-            if ($log->servis_id) {
-                $this->syncServisPersonelFromLatestCevap((int) $log->servis_id);
-            }
+            DB::transaction(function () use ($log, $payload, $oldDurumId) {
+                $log->update($payload);
+                if ($log->servis_id) {
+                    $this->syncServisDurumFromUpdatedLog($log, $oldDurumId);
+                    $this->syncServisPersonelFromLatestCevap((int) $log->servis_id);
+                }
+            });
             return response()->json(['success' => true, 'message' => 'İşlem logu başarıyla güncellendi.']);
         } catch (\Exception $e) {
             Log::error('İşlem logu güncellenirken hata: ' . $e->getMessage(), ['log_id' => $islemlog]);
             return response()->json(['success' => false, 'message' => 'İşlem logu güncellenirken bir hata oluştu.'], 500);
         }
+    }
+
+    /**
+     * Düzenlenen log o servisin en son (silinmemiş) durum loguysa servis durumunu
+     * ve ilgili cevap/soru kayıtlarını yeni duruma çeker. Ara logda dokunulmaz.
+     */
+    private function syncServisDurumFromUpdatedLog(Islemloglari $log, int $oldDurumId): void
+    {
+        $servisId = (int) $log->servis_id;
+        $newDurumId = (int) ($log->servis_durum_id ?? 0);
+        if ($servisId <= 0 || $newDurumId <= 0) {
+            return;
+        }
+
+        $latestId = Islemloglari::where('servis_id', $servisId)
+            ->notDeleted()
+            ->orderBy('id', 'desc')
+            ->value('id');
+
+        if ((int) $latestId !== (int) $log->id) {
+            return;
+        }
+
+        Servis::where('id', $servisId)->update(['servis_durum_id' => $newDurumId]);
+
+        if ($oldDurumId > 0 && $oldDurumId !== $newDurumId) {
+            $this->alignCevapRecordsToDurum($servisId, $oldDurumId, $newDurumId);
+        }
+    }
+
+    /**
+     * Son durum loguna karşılık gelen cevap0 + cevap.soru_id kayıtlarını yeni duruma hizalar.
+     * Eşleşme: cevap_format (gerekirse sira); tek soruluk durumlarda format farklı olsa da bağlanır.
+     */
+    private function alignCevapRecordsToDurum(int $servisId, int $oldDurumId, int $newDurumId): void
+    {
+        $cevap0 = ServisDurumCevap0::where('servis_id', $servisId)
+            ->where('servis_durum_id', $oldDurumId)
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$cevap0) {
+            return;
+        }
+
+        $cevap0->servis_durum_id = $newDurumId;
+        $cevap0->save();
+
+        $newSorular = ServisDurumSoru::where('servis_durum_id', $newDurumId)
+            ->orderBy('sira')
+            ->orderBy('id')
+            ->get();
+
+        if ($newSorular->isEmpty()) {
+            return;
+        }
+
+        $usedNewSoruIds = [];
+        $cevaplar = ServisDurumCevap::where('durumCevap0_id', $cevap0->id)->get();
+        $oldSorularById = ServisDurumSoru::whereIn('id', $cevaplar->pluck('soru_id')->filter()->unique()->all())
+            ->get()
+            ->keyBy('id');
+
+        foreach ($cevaplar as $cevap) {
+            $oldSoru = $oldSorularById->get((int) $cevap->soru_id);
+            $newSoru = $this->findMatchingSoru($oldSoru, $newSorular, $usedNewSoruIds);
+            if (!$newSoru) {
+                continue;
+            }
+            $cevap->soru_id = $newSoru->id;
+            $cevap->save();
+            $usedNewSoruIds[] = (int) $newSoru->id;
+        }
+    }
+
+    private function findMatchingSoru($oldSoru, $newSorular, array $usedNewSoruIds)
+    {
+        $candidates = $newSorular->filter(function ($soru) use ($usedNewSoruIds) {
+            return !in_array((int) $soru->id, $usedNewSoruIds, true);
+        })->values();
+
+        if ($candidates->isEmpty()) {
+            return null;
+        }
+
+        if ($oldSoru) {
+            $byFormat = $candidates->filter(function ($soru) use ($oldSoru) {
+                return (string) $soru->cevap_format === (string) $oldSoru->cevap_format;
+            })->values();
+
+            if ($byFormat->count() === 1) {
+                return $byFormat->first();
+            }
+            if ($byFormat->isNotEmpty()) {
+                $bySira = $byFormat->firstWhere('sira', $oldSoru->sira);
+                return $bySira ?: $byFormat->first();
+            }
+
+            // Her iki durumda da tek soru varsa format farklı olsa da bağla (placeholder "?" soruları).
+            // 9098 gibi çok sorulu durumlarda teknisyen cevabını (13234) başka formata taşıma.
+            if ($candidates->count() === 1) {
+                $oldCount = ServisDurumSoru::where('servis_durum_id', $oldSoru->servis_durum_id)->count();
+                if ($oldCount === 1) {
+                    return $candidates->first();
+                }
+            }
+        }
+
+        return null;
     }
 
     public function destroy($islemlog)
