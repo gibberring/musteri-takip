@@ -150,13 +150,14 @@ class ServisController extends Controller
             }
             $pendingOnly = (int) $request->input('pending_only', 0) === 1;
             $todayCancellationsOnly = (int) $request->input('today_cancellations_only', 0) === 1;
+            $todayUnreachableOnly = (int) $request->input('today_unreachable_only', 0) === 1;
             if ($pendingOnly) {
                 if (!$loggedInUser || !in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $operatorPozisyonId], true)) {
                     abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
                 }
             }
-            // Panel İptal kartı ile aynı roller: Operatör / Teknisyen / İdari İşler hariç
-            if ($todayCancellationsOnly) {
+            // Panel İptal / Ulaşılamadı kartları ile aynı roller: Operatör / Teknisyen / İdari İşler hariç
+            if ($todayCancellationsOnly || $todayUnreachableOnly) {
                 if (!$loggedInUser || in_array((int) $loggedInUser->poz_id, [$operatorPozisyonId, $tsrnTeknisyenPozisyonId, $hariciOperatorPozisyonId], true)) {
                     abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
                 }
@@ -190,8 +191,15 @@ class ServisController extends Controller
                     ->whereDate('servisler.created_at', Carbon::today());
             }
 
+            // Panel "Müşteriye Ulaşılamadı" kartı ile aynı mantık: bugün oluşturulan + durum 9102
+            if ($todayUnreachableOnly) {
+                $musteriUlasilamadiDurumId = 9102;
+                $baseQuery->where('servisler.servis_durum_id', $musteriUlasilamadiDurumId)
+                    ->whereDate('servisler.created_at', Carbon::today());
+            }
+
             // Eğer kullanıcı sadece kendi servislerini görebiliyorsa filtrele
-            if ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch && !$todayCancellationsOnly) {
+            if ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch && !$todayCancellationsOnly && !$todayUnreachableOnly) {
                 // Sadece "güncel" teknisyen yönlendirmesi (aynı mantık, korelasyon yok: önce servis
                 // bazında MAX(cevap.id), sonra JOIN ile eşle — count() ile sunucu şişmez.
                 $baseQuery->where('servisler.servis_durum_id', $teknisyenYonlendirildiStatusId)
@@ -517,6 +525,7 @@ class ServisController extends Controller
                 'teknisyenPersonelleri', // Teknisyen personelleri
                 'pendingOnly',
                 'todayCancellationsOnly',
+                'todayUnreachableOnly',
                 'hideBolgeServisleri'
             ));
         } catch (\Exception $e) {
@@ -539,6 +548,7 @@ class ServisController extends Controller
                 'teknisyenPersonelleri' => collect(), // Hata durumunda boş koleksiyon
                 'pendingOnly' => false,
                 'todayCancellationsOnly' => false,
+                'todayUnreachableOnly' => false,
                 'hideBolgeServisleri' => false
              ])->withErrors('Veriler yüklenirken bir sorun oluştu.');
         }
@@ -638,6 +648,16 @@ class ServisController extends Controller
     public function todayCancellationsIndex(Request $request)
     {
         $request->merge(['today_cancellations_only' => 1]);
+        return $this->index($request);
+    }
+
+    /**
+     * Bugün kaydedilip "Müşteriye Ulaşılamadı" (9102) durumundaki servisler.
+     * Panel genel bakış Ulaşılamadı kartı ile aynı sayım mantığı.
+     */
+    public function todayUnreachableIndex(Request $request)
+    {
+        $request->merge(['today_unreachable_only' => 1]);
         return $this->index($request);
     }
 

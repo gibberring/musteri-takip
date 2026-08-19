@@ -38,9 +38,9 @@ $(document).ready(function() {
     // PERM: Sayfa üstündeki buton/dropdown görünürlükleri
     try {
         if (window.PERM && window.PERM.can) {
-            // Yeni Servis butonu (Bugünkü İptaller sayfasında gizli)
+            // Yeni Servis butonu (Bugünkü İptaller / Ulaşılamayan Müşteriler sayfasında gizli)
             if (
-                !(window.crmData && window.crmData.todayCancellationsOnly) &&
+                !(window.crmData && (window.crmData.todayCancellationsOnly || window.crmData.todayUnreachableOnly)) &&
                 window.PERM.can.canCreateServis &&
                 window.PERM.can.canCreateServis()
             ) {
@@ -295,6 +295,9 @@ $(document).ready(function() {
                 }
                 if (window.crmData && window.crmData.todayCancellationsOnly) {
                     d.today_cancellations_only = 1;
+                }
+                if (window.crmData && window.crmData.todayUnreachableOnly) {
+                    d.today_unreachable_only = 1;
                 }
                 if (activeFilterType === 'bolge') {
                     d.il_id = getVisibleFilterValue('#bolgeSehir', '#bolgeSehirMobile') || '';

@@ -1,6 +1,17 @@
 @extends('layouts.app')
 
-@section('title', ($todayCancellationsOnly ?? false) ? 'Bugünkü İptaller' : (($pendingOnly ?? false) ? 'Bekleyen Kayıtlar' : 'Servis Listesi'))
+@php
+    $todayUnreachableOnly = $todayUnreachableOnly ?? false;
+    $todayCancellationsOnly = $todayCancellationsOnly ?? false;
+    $pendingOnly = $pendingOnly ?? false;
+    $servisListPageTitle = $todayUnreachableOnly
+        ? 'Ulaşılamayan Müşteriler'
+        : ($todayCancellationsOnly ? 'Bugünkü İptaller' : ($pendingOnly ? 'Bekleyen Kayıtlar' : 'Servis Listesi'));
+    $hideYeniServisOnList = $todayCancellationsOnly || $todayUnreachableOnly;
+    $hideServisDurumFilter = $pendingOnly || $todayCancellationsOnly || $todayUnreachableOnly;
+@endphp
+
+@section('title', $servisListPageTitle)
 
 @push('page_specific_css')
     <link rel="stylesheet" type="text/css" href="{{ asset('crm_assets/vendors/css/dataTables.bs5.min.css') }}">
@@ -501,13 +512,13 @@
     <div class="page-header">
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
-                <h5 class="m-b-10">{{ ($todayCancellationsOnly ?? false) ? 'Bugünkü İptaller' : (($pendingOnly ?? false) ? 'Bekleyen Kayıtlar' : 'Servis Listesi') }}</h5>
+                <h5 class="m-b-10">{{ $servisListPageTitle }}</h5>
             </div>
         </div>
         <div class="page-header-right ms-auto d-none d-sm-block">
             <div class="page-header-right-items">
                 <div class="d-flex align-items-center gap-2 page-header-right-items-wrapper">
-                    @if(!($todayCancellationsOnly ?? false))
+                    @if(!$hideYeniServisOnList)
                     <button type="button" id="yeniServisAcBtn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#yeniServisModal" style="display:none;">
                         <i class="feather-plus me-2"></i>
                         <span>YENİ SERVİS</span>
@@ -667,7 +678,7 @@
                     {{-- YENİ TEKNİSYEN SERVİSLERİ DROPDOWN BİTİŞ --}}
 
                     {{-- YENİ SERVİS DURUM DROPDOWN BAŞLANGIÇ --}}
-                    @if(!($pendingOnly ?? false) && !($todayCancellationsOnly ?? false))
+                    @if(!$hideServisDurumFilter)
                     <div class="dropdown" @if(isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) style="display:none;" @endif>
                         <button class="btn btn-outline-success dropdown-toggle" type="button" id="servisDurumDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="feather-activity me-2"></i> SERVİS DURUM
@@ -724,7 +735,7 @@
     </div>
     <div class="d-block d-sm-none mt-2">
         <div class="d-flex flex-wrap gap-2 justify-content-center">
-            @if(!($todayCancellationsOnly ?? false) && (!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId))
+            @if(!$hideYeniServisOnList && (!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId))
             <button type="button" id="yeniServisAcBtnMobile" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#yeniServisModal">
                 <span>YENİ SERVİS</span>
             </button>
@@ -884,7 +895,7 @@
             {{-- YENİ TEKNİSYEN SERVİSLERİ DROPDOWN BİTİŞ --}}
 
             {{-- YENİ SERVİS DURUM DROPDOWN BAŞLANGIÇ --}}
-            @if(!($pendingOnly ?? false) && !($todayCancellationsOnly ?? false))
+            @if(!$hideServisDurumFilter)
             <div class="dropdown" @if(isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) style="display:none;" @endif>
                 <button class="btn btn-outline-success dropdown-toggle btn-sm" type="button" id="servisDurumDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="feather-activity me-1"></i> SERVİS DURUM
@@ -1532,8 +1543,9 @@
     </script>
     <script>
         window.crmData = window.crmData || {};
-        window.crmData.pendingOnly = {{ ($pendingOnly ?? false) ? 'true' : 'false' }};
-        window.crmData.todayCancellationsOnly = {{ ($todayCancellationsOnly ?? false) ? 'true' : 'false' }};
+        window.crmData.pendingOnly = {{ $pendingOnly ? 'true' : 'false' }};
+        window.crmData.todayCancellationsOnly = {{ $todayCancellationsOnly ? 'true' : 'false' }};
+        window.crmData.todayUnreachableOnly = {{ $todayUnreachableOnly ? 'true' : 'false' }};
     </script>
     <script>
         // Cihaz Arızası / Şikayet için öneriler

@@ -19,6 +19,7 @@
                     $bekleyenOdemeCount = null;
                     $bekleyenServisCount = null;
                     $bugunkuIptalCount = null;
+                    $bugunkuUlasilamadiCount = null;
                     if ($loggedInUser && !in_array($loggedInUser->poz_id, [$operatorPozisyonId, $idariIslerPozisyonId])) {
                         try {
                             $bekleyenSorgu = \App\Models\Kasa::where('gerceklesme', 0)
@@ -65,6 +66,17 @@
                         } catch (\Throwable $e) {
                             $bugunkuIptalCount = null;
                         }
+                        try {
+                            $bugunkuUlasilamadiCount = \App\Models\Servis::where('servis_durum_id', 9102)
+                                ->whereDate('created_at', \Carbon\Carbon::today())
+                                ->where(function($q) {
+                                    $q->where('silindi', '!=', 1)
+                                      ->orWhereNull('silindi');
+                                })
+                                ->count();
+                        } catch (\Throwable $e) {
+                            $bugunkuUlasilamadiCount = null;
+                        }
                     }
                 @endphp
                 <li class="nxl-item nxl-caption">
@@ -102,7 +114,7 @@
                     </a>
                 </li>
                 @endif
-                <li class="nxl-item {{ request()->is('servisler*') && !request()->is('servisler/bekleyen-kayitlar') && !request()->is('servisler/bugunku-iptaller') ? 'active' : '' }}">
+                <li class="nxl-item {{ request()->is('servisler*') && !request()->is('servisler/bekleyen-kayitlar') && !request()->is('servisler/bugunku-iptaller') && !request()->is('servisler/ulasilamayan-musteriler') ? 'active' : '' }}">
                     <a href="{{ url('/servisler') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-tool"></i></span>
                         <span class="nxl-mtext">SERVİSLER</span>
@@ -129,6 +141,17 @@
                             BUGÜNKÜ İPTALLER
                             @if(!empty($bugunkuIptalCount))
                                 <span class="badge bg-danger ms-1">{{ $bugunkuIptalCount }}</span>
+                            @endif
+                        </span>
+                    </a>
+                </li>
+                <li class="nxl-item {{ request()->is('servisler/ulasilamayan-musteriler') ? 'active' : '' }}">
+                    <a href="{{ url('/servisler/ulasilamayan-musteriler') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-phone-off"></i></span>
+                        <span class="nxl-mtext">
+                            ULAŞILAMAYAN MÜŞTERİLER
+                            @if(!empty($bugunkuUlasilamadiCount))
+                                <span class="badge bg-info ms-1">{{ $bugunkuUlasilamadiCount }}</span>
                             @endif
                         </span>
                     </a>
