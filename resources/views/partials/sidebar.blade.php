@@ -114,20 +114,28 @@
                     </a>
                 </li>
                 @endif
-                <li class="nxl-item {{ request()->is('servisler*') && !request()->is('servisler/bekleyen-kayitlar') && !request()->is('servisler/bugunku-iptaller') && !request()->is('servisler/ulasilamayan-musteriler') ? 'active' : '' }}">
+                <li class="nxl-item {{ request()->is('servisler*') && !request()->is('servisler/bekleyen-kayitlar') && !request()->is('servisler/bugunku-iptaller') && !request()->is('servisler/ulasilamayan-musteriler') && !request()->is('servisler/teknisyen-bakisi') ? 'active' : '' }}">
                     <a href="{{ url('/servisler') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-tool"></i></span>
                         <span class="nxl-mtext">SERVİSLER</span>
                     </a>
                 </li>
                 @if ($loggedInUser && in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $operatorPozisyonId], true))
+                <li class="nxl-item {{ request()->is('servisler/teknisyen-bakisi') ? 'active' : '' }}">
+                    <a href="{{ route('servisler.teknisyenBakisi') }}" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-eye"></i></span>
+                        <span class="nxl-mtext">TEKNİSYEN BAKIŞI</span>
+                    </a>
+                </li>
+                @endif
+                @if ($loggedInUser && in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $operatorPozisyonId], true))
                 <li class="nxl-item {{ request()->is('servisler/bekleyen-kayitlar') ? 'active' : '' }}">
                     <a href="{{ url('/servisler/bekleyen-kayitlar') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-clock"></i></span>
                         <span class="nxl-mtext">
-                            BEKLEYEN KAYITLAR
+                            <span class="nxl-mtext-label">BEKLEYEN KAYITLAR</span>
                             @if(!empty($bekleyenServisCount))
-                                <span class="badge bg-warning text-dark ms-1">{{ $bekleyenServisCount }}</span>
+                                <span class="badge bg-warning text-dark">{{ $bekleyenServisCount }}</span>
                             @endif
                         </span>
                     </a>
@@ -138,9 +146,9 @@
                     <a href="{{ url('/servisler/bugunku-iptaller') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-x-circle"></i></span>
                         <span class="nxl-mtext">
-                            BUGÜNKÜ İPTALLER
+                            <span class="nxl-mtext-label">BUGÜNKÜ İPTALLER</span>
                             @if(!empty($bugunkuIptalCount))
-                                <span class="badge bg-danger ms-1">{{ $bugunkuIptalCount }}</span>
+                                <span class="badge bg-danger">{{ $bugunkuIptalCount }}</span>
                             @endif
                         </span>
                     </a>
@@ -149,9 +157,9 @@
                     <a href="{{ url('/servisler/ulasilamayan-musteriler') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-phone-off"></i></span>
                         <span class="nxl-mtext">
-                            ULAŞILAMAYAN MÜŞTERİLER
+                            <span class="nxl-mtext-label">ULAŞILAMAYAN MÜŞTERİLER</span>
                             @if(!empty($bugunkuUlasilamadiCount))
-                                <span class="badge bg-info ms-1">{{ $bugunkuUlasilamadiCount }}</span>
+                                <span class="badge bg-info">{{ $bugunkuUlasilamadiCount }}</span>
                             @endif
                         </span>
                     </a>
@@ -185,9 +193,9 @@
                     <a href="{{ url('/kasa/bekleyen-odemeler') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-clock"></i></span>
                         <span class="nxl-mtext">
-                            BEKLEYEN ÖDEMELER
+                            <span class="nxl-mtext-label">BEKLEYEN ÖDEMELER</span>
                             @if(!empty($bekleyenOdemeCount) && $bekleyenOdemeCount > 0)
-                                <span class="badge bg-danger ms-1">{{ $bekleyenOdemeCount }}</span>
+                                <span class="badge bg-danger">{{ $bekleyenOdemeCount }}</span>
                             @endif
                         </span>
                     </a>
@@ -220,6 +228,32 @@
     </div>
 </nav> 
 <style>
-    .nxl-navbar .nxl-mtext { font-size: 0.75rem; }
+    .nxl-navigation .navbar-content .nxl-link {
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        padding: 10px 12px;
+    }
+    .nxl-navigation .navbar-content .nxl-micon {
+        flex-shrink: 0;
+        margin-right: 8px;
+    }
+    .nxl-navigation .navbar-content .nxl-mtext {
+        font-size: 0.72rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        min-width: 0;
+        white-space: nowrap;
+    }
+    .nxl-navigation .navbar-content .nxl-mtext .badge {
+        flex-shrink: 0;
+        font-size: 0.65rem;
+        padding: 0.15em 0.4em;
+        line-height: 1.2;
+    }
+    html.minimenu .nxl-navigation:hover .navbar-content .nxl-mtext {
+        display: inline-flex;
+    }
     .nxl-navbar .nxl-caption label { font-size: 0.65rem; }
 </style>

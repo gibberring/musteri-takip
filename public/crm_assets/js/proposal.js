@@ -38,9 +38,9 @@ $(document).ready(function() {
     // PERM: Sayfa üstündeki buton/dropdown görünürlükleri
     try {
         if (window.PERM && window.PERM.can) {
-            // Yeni Servis butonu (Bugünkü İptaller / Ulaşılamayan Müşteriler sayfasında gizli)
+            // Yeni Servis butonu (Bugünkü İptaller / Ulaşılamayan Müşteriler / Teknisyen Bakışı sayfasında gizli)
             if (
-                !(window.crmData && (window.crmData.todayCancellationsOnly || window.crmData.todayUnreachableOnly)) &&
+                !(window.crmData && (window.crmData.todayCancellationsOnly || window.crmData.todayUnreachableOnly || window.crmData.teknisyenBakisiOnly)) &&
                 window.PERM.can.canCreateServis &&
                 window.PERM.can.canCreateServis()
             ) {
@@ -48,6 +48,12 @@ $(document).ready(function() {
             } else {
                 $('#yeniServisAcBtn, #yeniServisAcBtnMobile').hide();
             }
+            if (window.crmData && window.crmData.teknisyenBakisiOnly) {
+                $('#bolgeServisleriDropdown, #bolgeServisleriDropdownMobile').closest('.dropdown').hide();
+                $('#operatorServisleriDropdown, #operatorServisleriDropdownMobile').closest('.dropdown').hide();
+                $('#teknisyenServisleriDropdown, #teknisyenServisleriDropdownMobile').closest('.dropdown').hide();
+                $('#servisDurumDropdown').closest('.dropdown').hide();
+            } else {
             // Bölge filtresi (teknisyen görmez; masaüstü + mobil)
             if (window.PERM.can.canViewBolgeFilter && window.PERM.can.canViewBolgeFilter()) {
                 var isHariciOperator = window.crmData && String(window.crmData.loggedInUserPozId) === '1076';
@@ -85,6 +91,7 @@ $(document).ready(function() {
                 }
             } else {
                 $('#servisDurumDropdown').closest('.dropdown').hide();
+            }
             }
         }
     } catch(e) { /* no-op */ }
@@ -211,7 +218,10 @@ $(document).ready(function() {
                 let markaAd = row.marka ? row.marka.ad : 'N/A';
                 let cihazTuruAd = row.cihaz_turu ? row.cihaz_turu.ad : 'N/A';
                 let cihazArizasi = row.cihaz_arizasi ? ucfirstJs(row.cihaz_arizasi.toLowerCase()) : '';
-                return '<span class="fw-bold text-dark">' + markaAd + ' / ' + cihazTuruAd + '</span><br><small class="fs-12 fw-normal text-muted fst-italic cihaz-ariza-text">' + cihazArizasi + '</small>';
+                const cihazArizaTitle = cihazArizasi
+                    ? ' title="' + String(cihazArizasi).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"'
+                    : '';
+                return '<span class="fw-bold text-dark">' + markaAd + ' / ' + cihazTuruAd + '</span><br><small class="fs-12 fw-normal text-muted fst-italic cihaz-ariza-text"' + cihazArizaTitle + '>' + cihazArizasi + '</small>';
             }
         },
         {
@@ -226,7 +236,7 @@ $(document).ready(function() {
                 const logAd = row.lastLogAciklama || '';
                 const gidisTarihi = row.tarih
                     ? new Date(row.tarih).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                    : '-';
+                    : '';
 
                 const durumAdNormalized = String(durumAd || '').toLocaleLowerCase('tr-TR');
                 const logOnlyStatuses = [
@@ -251,16 +261,24 @@ $(document).ready(function() {
                 let teknisyenLine = '';
                 if (hasAssignedTechnician) {
                     const personnelHtml = '<a href="/personeller/' + assignedPersonnelId + '/profil" class="teknisyen-profile-link text-decoration-none">' + assignedPersonnelName + '</a>';
-                    teknisyenLine = '<small class="fs-11 fw-normal text-muted d-block durum-teknisyen">Teknisyen : ' + personnelHtml + '</small>';
+                    teknisyenLine = '<small class="fs-11 fw-normal text-muted d-block durum-teknisyen">' + personnelHtml + '</small>';
+                }
+
+                let gidisTarihiLine = '';
+                if (gidisTarihi) {
+                    gidisTarihiLine = '<small class="fs-11 fw-normal text-muted d-block">' + gidisTarihi + '</small>';
                 }
 
                 if (showLastLog) {
+                    const lastLogTitle = (lastLogText && lastLogText !== '-')
+                        ? ' title="' + String(lastLogText).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;') + '"'
+                        : '';
                     return '<div class="fw-bold">' + durumAd + '</div>' +
-                           '<small class="fs-11 fw-normal text-muted d-block durum-log">' + lastLogText + '</small>';
+                           '<small class="fs-11 fw-normal text-muted d-block durum-log durum-aciklama"' + lastLogTitle + '>' + lastLogText + '</small>';
                 }
                 return '<div class="fw-bold">' + durumAd + '</div>' +
                        teknisyenLine +
-                       '<small class="fs-11 fw-normal text-muted d-block">Gidiş Tarihi : ' + gidisTarihi + '</small>';
+                       gidisTarihiLine;
             }
         }
     ];
@@ -299,7 +317,18 @@ $(document).ready(function() {
                 if (window.crmData && window.crmData.todayUnreachableOnly) {
                     d.today_unreachable_only = 1;
                 }
-                if (activeFilterType === 'bolge') {
+                if (window.crmData && window.crmData.teknisyenBakisiOnly) {
+                    d.teknisyen_bakisi = 1;
+                    d.personel_id = window.crmData.teknisyenBakisiPersonelId || '';
+                    d.personel_filter_type = 'teknisyen';
+                    if (window.crmData.teknisyenBakisiDurumId) {
+                        d.servis_durum_id = window.crmData.teknisyenBakisiDurumId;
+                    } else {
+                        delete d.servis_durum_id;
+                    }
+                    delete d.baslangic_tarih;
+                    delete d.bitis_tarih;
+                } else if (activeFilterType === 'bolge') {
                     d.il_id = getVisibleFilterValue('#bolgeSehir', '#bolgeSehirMobile') || '';
                     var bolgeBas = getVisibleFilterValue('#bolgeBaslangicTarih', '#bolgeBaslangicTarihMobile');
                     var bolgeBit = getVisibleFilterValue('#bolgeBitisTarih', '#bolgeBitisTarihMobile');

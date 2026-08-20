@@ -4,11 +4,15 @@
     $todayUnreachableOnly = $todayUnreachableOnly ?? false;
     $todayCancellationsOnly = $todayCancellationsOnly ?? false;
     $pendingOnly = $pendingOnly ?? false;
+    $teknisyenBakisiOnly = $teknisyenBakisiOnly ?? false;
+    $teknisyenBakisiPersonelId = $teknisyenBakisiPersonelId ?? 0;
+    $teknisyenBakisiDurumId = $teknisyenBakisiDurumId ?? 0;
+    $teknisyenBakisiSubtitle = $teknisyenBakisiSubtitle ?? null;
     $servisListPageTitle = $todayUnreachableOnly
         ? 'Ulaşılamayan Müşteriler'
-        : ($todayCancellationsOnly ? 'Bugünkü İptaller' : ($pendingOnly ? 'Bekleyen Kayıtlar' : 'Servis Listesi'));
-    $hideYeniServisOnList = $todayCancellationsOnly || $todayUnreachableOnly;
-    $hideServisDurumFilter = $pendingOnly || $todayCancellationsOnly || $todayUnreachableOnly;
+        : ($todayCancellationsOnly ? 'Bugünkü İptaller' : ($pendingOnly ? 'Bekleyen Kayıtlar' : ($teknisyenBakisiOnly ? 'Teknisyen Bakışı' : 'Servis Listesi')));
+    $hideYeniServisOnList = $todayCancellationsOnly || $todayUnreachableOnly || $teknisyenBakisiOnly;
+    $hideServisDurumFilter = $pendingOnly || $todayCancellationsOnly || $todayUnreachableOnly || $teknisyenBakisiOnly;
 @endphp
 
 @section('title', $servisListPageTitle)
@@ -216,8 +220,9 @@
                 max-width: 10% !important;
             }
             #servisListTable td:nth-child(3) .text-truncate-1-line {
-                white-space: normal !important;
-                overflow: visible !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
             }
         }
         #servisDetayModal h6 {
@@ -491,9 +496,18 @@
             padding: 0.35em 0.6em; /* Varsayılan Bootstrap padding'i */
             font-size: 0.85em; /* Font boyutunu küçült */
         }
-        #servisListTable .durum-log {
-            white-space: normal;
+        #servisListTable .durum-log,
+        #servisListTable .durum-aciklama {
+            display: -webkit-box !important;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: normal !important;
             word-break: break-word;
+            overflow-wrap: anywhere;
+            max-width: 100%;
         }
         #servisListTable td:nth-child(6) {
             text-align: center; /* Durum sütunundaki hücre içeriğini ortala */
@@ -513,7 +527,15 @@
         <div class="page-header-left d-flex align-items-center">
             <div class="page-header-title">
                 <h5 class="m-b-10">{{ $servisListPageTitle }}</h5>
+                @if($teknisyenBakisiOnly && !empty($teknisyenBakisiSubtitle))
+                    <div class="fs-12 text-muted">{{ $teknisyenBakisiSubtitle }}</div>
+                @endif
             </div>
+            @if($teknisyenBakisiOnly)
+                <a href="{{ route('servisler.teknisyenBakisi') }}" class="btn btn-sm btn-outline-secondary ms-2">
+                    <i class="feather-arrow-left me-1"></i> Kartlar
+                </a>
+            @endif
         </div>
         <div class="page-header-right ms-auto d-none d-sm-block">
             <div class="page-header-right-items">
@@ -560,7 +582,7 @@
                     {{-- YENİ BÖLGE SERVİSLERİ DROPDOWN BİTİŞ --}}
 
                     {{-- YENİ OPERATÖR SERVİSLERİ DROPDOWN BAŞLANGIÇ --}}
-                    <div class="dropdown" @if(isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) style="display:none;" @endif>
+                    <div class="dropdown" @if(!empty($teknisyenBakisiOnly) || (isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId)) style="display:none;" @endif>
                         <button class="btn btn-outline-info dropdown-toggle" type="button" id="operatorServisleriDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="feather-user-check me-2"></i> OPERATÖR SERVİSLERİ
                         </button>
@@ -735,6 +757,11 @@
     </div>
     <div class="d-block d-sm-none mt-2">
         <div class="d-flex flex-wrap gap-2 justify-content-center">
+            @if($teknisyenBakisiOnly)
+            <a href="{{ route('servisler.teknisyenBakisi') }}" class="btn btn-outline-secondary btn-sm">
+                <i class="feather-arrow-left me-1"></i> Kartlar
+            </a>
+            @endif
             @if(!$hideYeniServisOnList && (!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId))
             <button type="button" id="yeniServisAcBtnMobile" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#yeniServisModal">
                 <span>YENİ SERVİS</span>
@@ -775,7 +802,7 @@
             {{-- YENİ BÖLGE SERVİSLERİ DROPDOWN BİTİŞ --}}
 
             {{-- YENİ OPERATÖR SERVİSLERİ DROPDOWN BAŞLANGIÇ --}}
-            <div class="dropdown" @if(isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) style="display:none;" @endif>
+            <div class="dropdown" @if(!empty($teknisyenBakisiOnly) || (isset($loggedInUser) && $loggedInUser && $loggedInUser->poz_id == $tsrnTeknisyenPozisyonId)) style="display:none;" @endif>
                 <button class="btn btn-outline-info dropdown-toggle btn-sm" type="button" id="operatorServisleriDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="feather-user-check me-1"></i> OPERATÖR SERVİSLERİ
                 </button>
@@ -814,7 +841,7 @@
             {{-- YENİ OPERATÖR SERVİSLERİ DROPDOWN BİTİŞ --}}
 
             {{-- YENİ TEKNİSYEN SERVİSLERİ DROPDOWN BAŞLANGIÇ --}}
-            @if(!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId)
+            @if(empty($teknisyenBakisiOnly) && (!isset($loggedInUser) || !$loggedInUser || $loggedInUser->poz_id != $tsrnTeknisyenPozisyonId))
             <div class="dropdown">
                 <button class="btn btn-outline-warning dropdown-toggle btn-sm" type="button" id="teknisyenServisleriDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="feather-hard-drive me-1"></i> TEKNİSYEN SERVİSLERİ
@@ -1069,14 +1096,13 @@
                                                 @endphp
                                                 @if ($hasAssignedTechnician)
                                                     <small class="fs-11 fw-normal text-muted d-block durum-teknisyen">
-                                                        Teknisyen :
                                                         <a href="{{ route('personel.teknisyenProfil', $servis->assignedPersonnelId) }}" class="text-decoration-none">
                                                             {{ $teknisyenAd }}
                                                         </a>
                                                     </small>
                                                 @endif
                                                 @php
-                                                    $gidisTarihGoster = '-';
+                                                    $gidisTarihGoster = '';
                                                     if (!empty($servis->tarih)) {
                                                         try {
                                                             $gidisTarihGoster = \Carbon\Carbon::parse($servis->tarih)->format('d.m.Y');
@@ -1085,9 +1111,11 @@
                                                         }
                                                     }
                                                 @endphp
-                                                <small class="fs-11 fw-normal text-muted d-block">
-                                                    Gidiş Tarihi : {{ $gidisTarihGoster }}
-                                                </small>
+                                                @if ($gidisTarihGoster)
+                                                    <small class="fs-11 fw-normal text-muted d-block">
+                                                        {{ $gidisTarihGoster }}
+                                                    </small>
+                                                @endif
                                         </td>
                                         @if($canBulkServisDurum)
                                             <td class="text-center no-print">
@@ -1546,6 +1574,9 @@
         window.crmData.pendingOnly = {{ $pendingOnly ? 'true' : 'false' }};
         window.crmData.todayCancellationsOnly = {{ $todayCancellationsOnly ? 'true' : 'false' }};
         window.crmData.todayUnreachableOnly = {{ $todayUnreachableOnly ? 'true' : 'false' }};
+        window.crmData.teknisyenBakisiOnly = {{ $teknisyenBakisiOnly ? 'true' : 'false' }};
+        window.crmData.teknisyenBakisiPersonelId = {{ (int) $teknisyenBakisiPersonelId }};
+        window.crmData.teknisyenBakisiDurumId = {{ (int) $teknisyenBakisiDurumId }};
     </script>
     <script>
         // Cihaz Arızası / Şikayet için öneriler

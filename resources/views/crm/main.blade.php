@@ -661,7 +661,7 @@
 @endpush
 
 @push('page_specific_main_scripts')
-    <script src="{{ asset('crm_assets/js/proposal.js') }}"></script>
+    <script src="{{ asset('crm_assets/js/proposal.js') }}?v={{ filemtime(public_path('crm_assets/js/proposal.js')) }}"></script>
     <script src="{{ asset('crm_assets/js/helpers.js') }}"></script>
     <script>
         $(document).ready(function () {

@@ -33,6 +33,7 @@ use App\Models\ServisResmi; // Resim modeli eklendi
 use App\Models\Announcement;
 use App\Models\SettingsAuditLog;
 use App\Services\TeknisyenYonlendirmeBildirimService;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 class ServisController extends Controller
 {
@@ -151,12 +152,21 @@ class ServisController extends Controller
             $pendingOnly = (int) $request->input('pending_only', 0) === 1;
             $todayCancellationsOnly = (int) $request->input('today_cancellations_only', 0) === 1;
             $todayUnreachableOnly = (int) $request->input('today_unreachable_only', 0) === 1;
+            $teknisyenBakisiOnly = (int) $request->input('teknisyen_bakisi', 0) === 1;
+            $teknisyenBakisiPersonelId = $teknisyenBakisiOnly ? (int) $request->input('personel_id', 0) : 0;
+            $teknisyenBakisiDurumId = $teknisyenBakisiOnly
+                ? (int) ($request->input('durum_id', $request->input('servis_durum_id', 0)) ?: 0)
+                : 0;
+            $teknisyenBakisiSubtitle = null;
             if ($pendingOnly) {
                 if (!$loggedInUser || !in_array((int) $loggedInUser->poz_id, [$patronPozisyonId, $muhasebePozisyonId, $operatorPozisyonId], true)) {
                     abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
                 }
             }
-            // Panel İptal / Ulaşılamadı kartları ile aynı roller: Operatör / Teknisyen / İdari İşler hariç
+            if ($teknisyenBakisiOnly) {
+                $this->abortUnlessTeknisyenBakisiAllowed();
+            }
+            // Panel İptal / Ulaşılamadı kartları: Operatör / Teknisyen / İdari İşler hariç
             if ($todayCancellationsOnly || $todayUnreachableOnly) {
                 if (!$loggedInUser || in_array((int) $loggedInUser->poz_id, [$operatorPozisyonId, $tsrnTeknisyenPozisyonId, $hariciOperatorPozisyonId], true)) {
                     abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
@@ -198,8 +208,51 @@ class ServisController extends Controller
                     ->whereDate('servisler.created_at', Carbon::today());
             }
 
+            // Teknisyen Bakışı listesi: atanmış açık işler (ileri tarih gizlenmez)
+            if ($teknisyenBakisiOnly) {
+                $acikDurumIds = ServisDurum::TEKNISYEN_ACIK_DURUM_IDS;
+                $kartDurumIds = ServisDurum::teknisyenBakisiKartDurumIds();
+                $baseQuery->whereNotNull('servisler.personel_id')
+                    ->where('servisler.personel_id', '!=', 0)
+                    ->whereExists(function ($q) use ($tsrnTeknisyenPozisyonId) {
+                        $q->select(DB::raw(1))
+                            ->from('personel')
+                            ->whereColumn('personel.id', 'servisler.personel_id')
+                            ->where('personel.poz_id', $tsrnTeknisyenPozisyonId);
+                    });
+
+                if ($teknisyenBakisiPersonelId > 0) {
+                    $baseQuery->where('servisler.personel_id', $teknisyenBakisiPersonelId);
+                } else {
+                    $baseQuery->whereRaw('1=0');
+                }
+
+                if ($teknisyenBakisiDurumId > 0) {
+                    if (in_array($teknisyenBakisiDurumId, $kartDurumIds, true)) {
+                        $baseQuery->where('servisler.servis_durum_id', $teknisyenBakisiDurumId);
+                    } else {
+                        $baseQuery->whereRaw('1=0');
+                    }
+                } else {
+                    $baseQuery->whereIn('servisler.servis_durum_id', $acikDurumIds);
+                }
+
+                if (!$request->ajax() && !$request->expectsJson() && $teknisyenBakisiPersonelId > 0) {
+                    $personelAd = Personel::where('id', $teknisyenBakisiPersonelId)->value('ad');
+                    $durumAd = $teknisyenBakisiDurumId > 0
+                        ? ServisDurum::where('id', $teknisyenBakisiDurumId)->value('ad')
+                        : null;
+                    $teknisyenBakisiSubtitle = trim((string) $personelAd);
+                    if ($teknisyenBakisiSubtitle !== '') {
+                        $teknisyenBakisiSubtitle .= $durumAd
+                            ? ' — ' . $durumAd
+                            : ' — tüm açık işler';
+                    }
+                }
+            }
+
             // Eğer kullanıcı sadece kendi servislerini görebiliyorsa filtrele
-            if ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch && !$todayCancellationsOnly && !$todayUnreachableOnly) {
+            if ($loggedInUser && $forceOwnServis && !$skipOwnServisFilterForSearch && !$todayCancellationsOnly && !$todayUnreachableOnly && !$teknisyenBakisiOnly) {
                 // Sadece "güncel" teknisyen yönlendirmesi (aynı mantık, korelasyon yok: önce servis
                 // bazında MAX(cevap.id), sonra JOIN ile eşle — count() ile sunucu şişmez.
                 $baseQuery->where('servisler.servis_durum_id', $teknisyenYonlendirildiStatusId)
@@ -510,7 +563,7 @@ class ServisController extends Controller
             
             Log::info('Servisler ve modal verileri çekildi (normal yükleme).');
 
-            $hideBolgeServisleri = $loggedInUser && (int) $loggedInUser->poz_id === $teknisyenPozisyonId;
+            $hideBolgeServisleri = ($loggedInUser && (int) $loggedInUser->poz_id === $teknisyenPozisyonId) || $teknisyenBakisiOnly;
 
         // View'a veriyi gönder
             return view('crm.proposal', compact(
@@ -526,8 +579,14 @@ class ServisController extends Controller
                 'pendingOnly',
                 'todayCancellationsOnly',
                 'todayUnreachableOnly',
+                'teknisyenBakisiOnly',
+                'teknisyenBakisiPersonelId',
+                'teknisyenBakisiDurumId',
+                'teknisyenBakisiSubtitle',
                 'hideBolgeServisleri'
             ));
+        } catch (HttpExceptionInterface $e) {
+            throw $e;
         } catch (\Exception $e) {
              Log::error('Servis listesi veya modal verileri çekilirken hata: ' . $e->getMessage());
              
@@ -549,6 +608,10 @@ class ServisController extends Controller
                 'pendingOnly' => false,
                 'todayCancellationsOnly' => false,
                 'todayUnreachableOnly' => false,
+                'teknisyenBakisiOnly' => false,
+                'teknisyenBakisiPersonelId' => 0,
+                'teknisyenBakisiDurumId' => 0,
+                'teknisyenBakisiSubtitle' => null,
                 'hideBolgeServisleri' => false
              ])->withErrors('Veriler yüklenirken bir sorun oluştu.');
         }
@@ -659,6 +722,174 @@ class ServisController extends Controller
     {
         $request->merge(['today_unreachable_only' => 1]);
         return $this->index($request);
+    }
+
+    /**
+     * Teknisyenlere yönlendirilmiş açık işler — durum bazlı kart özeti.
+     * Yetki: Patron (1071), Operatör (1073) ve Muhasebe (1080).
+     * ?personel_id=&durum_id= ile mevcut servis listesine düşer.
+     */
+    public function teknisyenBakisiIndex(Request $request)
+    {
+        $this->abortUnlessTeknisyenBakisiAllowed();
+        $tsrnTeknisyenPozisyonId = 1077;
+
+        $personelId = (int) $request->query('personel_id', 0);
+        if ($personelId > 0) {
+            $merge = [
+                'teknisyen_bakisi' => 1,
+                'personel_id' => $personelId,
+            ];
+            $durumId = (int) $request->query('durum_id', 0);
+            if ($durumId > 0) {
+                $merge['durum_id'] = $durumId;
+                $merge['servis_durum_id'] = $durumId;
+            }
+            $request->merge($merge);
+            return $this->index($request);
+        }
+
+        return $this->renderTeknisyenBakisiKartlari($tsrnTeknisyenPozisyonId);
+    }
+
+    private function abortUnlessTeknisyenBakisiAllowed(): void
+    {
+        $user = Auth::user();
+        $allowedPozisyonIds = [1071, 1073, 1080]; // Patron, Operatör, Muhasebe
+        if (!$user || !in_array((int) $user->poz_id, $allowedPozisyonIds, true)) {
+            abort(403, 'Bu sayfaya erişim yetkiniz bulunmamaktadır.');
+        }
+    }
+
+    private function renderTeknisyenBakisiKartlari(int $teknisyenPozisyonId)
+    {
+        $acikDurumIds = ServisDurum::TEKNISYEN_ACIK_DURUM_IDS;
+        $kartDurumIds = ServisDurum::teknisyenBakisiKartDurumIds();
+        $acikDurumLookup = array_flip($acikDurumIds);
+
+        $countRows = DB::table('servisler')
+            ->join('personel', 'personel.id', '=', 'servisler.personel_id')
+            ->where('personel.poz_id', $teknisyenPozisyonId)
+            ->whereNotNull('servisler.personel_id')
+            ->where('servisler.personel_id', '!=', 0)
+            ->where(function ($q) {
+                $q->where('servisler.silindi', '!=', 1)
+                    ->orWhereNull('servisler.silindi');
+            })
+            ->whereIn('servisler.servis_durum_id', $kartDurumIds)
+            ->groupBy('servisler.personel_id', 'servisler.servis_durum_id')
+            ->select('servisler.personel_id', 'servisler.servis_durum_id', DB::raw('COUNT(*) as cnt'))
+            ->get();
+
+        $personelIds = $countRows->pluck('personel_id')->unique()->filter()->values();
+        $durumIdsInData = $countRows->pluck('servis_durum_id')->unique()->filter()->values();
+
+        $teknisyenler = $personelIds->isEmpty()
+            ? collect()
+            : Personel::whereIn('id', $personelIds)->get(['id', 'ad', 'resim', 'poz_id'])->keyBy('id');
+
+        $durumlar = $durumIdsInData->isEmpty()
+            ? collect()
+            : ServisDurum::whereIn('id', $durumIdsInData)->get(['id', 'ad'])->keyBy('id');
+
+        $durumSira = array_flip($kartDurumIds);
+
+        $kartlar = [];
+        foreach ($countRows->groupBy('personel_id') as $personelId => $rows) {
+            $personel = $teknisyenler->get($personelId);
+            if (!$personel) {
+                continue;
+            }
+
+            $durumSayilari = [];
+            $acikToplam = 0;
+            foreach ($rows as $row) {
+                $durumId = (int) $row->servis_durum_id;
+                $cnt = (int) $row->cnt;
+                if ($cnt <= 0) {
+                    continue;
+                }
+                $durum = $durumlar->get($durumId);
+                $durumAd = $durum?->ad ?? ('Durum #' . $durumId);
+                $durumSayilari[] = [
+                    'id' => $durumId,
+                    'ad' => $durumAd,
+                    'kisa_ad' => ServisDurum::teknisyenBakisiKisaAd($durumId, $durumAd),
+                    'count' => $cnt,
+                    'badge' => ServisDurum::teknisyenBakisiBadgeClass($durumId),
+                    'sira' => $durumSira[$durumId] ?? 999,
+                ];
+                if (isset($acikDurumLookup[$durumId])) {
+                    $acikToplam += $cnt;
+                }
+            }
+
+            if (empty($durumSayilari)) {
+                continue;
+            }
+
+            usort($durumSayilari, function ($a, $b) {
+                return $a['sira'] <=> $b['sira'];
+            });
+
+            $kartlar[] = [
+                'personel_id' => (int) $personelId,
+                'ad' => $personel->ad,
+                'avatar_url' => $this->personelAvatarUrl($personel->resim ?? null, $personel->poz_id ?? $teknisyenPozisyonId),
+                'toplam' => $acikToplam,
+                'durumlar' => $durumSayilari,
+            ];
+        }
+
+        usort($kartlar, function ($a, $b) {
+            return $b['toplam'] <=> $a['toplam'] ?: strcasecmp($a['ad'], $b['ad']);
+        });
+
+        $toplamAcikIs = (int) array_sum(array_column($kartlar, 'toplam'));
+
+        return view('crm.servis.teknisyen-bakisi', [
+            'kartlar' => $kartlar,
+            'toplamAcikIs' => $toplamAcikIs,
+            'teknisyenSayisi' => count($kartlar),
+        ]);
+    }
+
+    /**
+     * Personel profil görseli: kayıtlı `resim` varsa onu, yoksa pozisyona göre
+     * teknisyen/personel sayfasındaki sabit avatarı kullanır.
+     */
+    private function personelAvatarUrl(?string $resim, $pozId): string
+    {
+        $default = asset('crm_assets/images/avatar/1.png');
+        $resim = trim((string) $resim);
+        if ($resim !== '') {
+            if (preg_match('#^https?://#i', $resim) === 1) {
+                return $resim;
+            }
+            if (str_starts_with($resim, '/')) {
+                return $resim;
+            }
+            if (str_contains($resim, '/')) {
+                return asset($resim);
+            }
+            if (is_file(public_path('storage/' . $resim))) {
+                return asset('storage/' . $resim);
+            }
+            if (is_file(public_path('crm_assets/images/avatar/' . $resim))) {
+                return asset('crm_assets/images/avatar/' . $resim);
+            }
+            return asset($resim);
+        }
+
+        $pozId = (int) $pozId;
+        if (in_array($pozId, [1071, 1080], true)) {
+            return asset('crm_assets/images/avatar/boss.png');
+        }
+        if (in_array($pozId, [1073, 1076], true)) {
+            return asset('crm_assets/images/avatar/call.png');
+        }
+
+        return $default;
     }
 
     /**
