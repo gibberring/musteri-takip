@@ -52,11 +52,7 @@ class DeletedRecordsController extends Controller
             ->limit($listLimit)
             ->get();
 
-        $silinenIslemLoglari = Islemloglari::onlyDeleted()
-            ->with(['personel', 'servis', 'servisDurum', 'silenKisi'])
-            ->orderByDesc('silinme_tarihi')
-            ->limit($listLimit)
-            ->get();
+        $silinenIslemLoglari = $this->deletedIslemLogQuery(null, $listLimit)->get();
 
         $musteriIletisimGuncellemeleri = SettingsAuditLog::query()
             ->where('action', SettingsAuditLog::ACTION_MUSTERI_CONTACT_UPDATED)
@@ -71,6 +67,70 @@ class DeletedRecordsController extends Controller
             'silinenIslemLoglari',
             'musteriIletisimGuncellemeleri'
         ));
+    }
+
+    public function searchIslemLog(Request $request)
+    {
+        $this->authorizePatron();
+
+        $q = trim((string) $request->input('q', ''));
+        $logs = $this->deletedIslemLogQuery($q, 500)->get();
+        $html = view('settings.partials.deleted-islemlog-rows', [
+            'silinenIslemLoglari' => $logs,
+            'emptyMessage' => $q === ''
+                ? 'Silinen işlem logu bulunamadı.'
+                : 'Eşleşen silinen işlem logu bulunamadı.',
+        ])->render();
+
+        return response()->json([
+            'html' => $html,
+            'count' => $logs->count(),
+        ]);
+    }
+
+    private function deletedIslemLogQuery(?string $search, int $limit = 500)
+    {
+        $query = Islemloglari::onlyDeleted()
+            ->with(['personel', 'servis', 'servisDurum', 'silenKisi'])
+            ->orderByDesc('silinme_tarihi')
+            ->orderByDesc('id');
+
+        $term = trim((string) $search);
+        if ($term === '') {
+            return $query->limit($limit);
+        }
+
+        $term = mb_substr($term, 0, 100);
+        $normalized = ltrim($term, '#');
+        $like = '%' . addcslashes($term, '%_\\') . '%';
+        $likeNorm = '%' . addcslashes($normalized, '%_\\') . '%';
+
+        $query->where(function ($q) use ($like, $likeNorm, $normalized) {
+            $q->where('aciklama', 'like', $like)
+                ->orWhere('tarih', 'like', $like)
+                ->orWhere('saat', 'like', $like)
+                ->orWhere('silinme_tarihi', 'like', $like)
+                ->orWhere('id', 'like', $likeNorm)
+                ->orWhere('servis_id', 'like', $likeNorm)
+                ->orWhereHas('personel', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                })
+                ->orWhereHas('silenKisi', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                })
+                ->orWhereHas('servisDurum', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like);
+                });
+
+            if ($normalized !== '' && ctype_digit($normalized)) {
+                $q->orWhere('id', $normalized)
+                    ->orWhere('servis_id', $normalized);
+            }
+        });
+
+        return $query->limit($limit);
     }
 
     public function restoreServis($servis)

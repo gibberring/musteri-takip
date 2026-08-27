@@ -123,8 +123,11 @@
             </div>
 
             <div class="tab-pane fade" id="islemlog" role="tabpanel">
+                <div class="d-flex justify-content-end mb-2">
+                    <input type="search" id="islemLogSearchInput" class="form-control form-control-sm w-auto" style="max-width: 280px;" placeholder="Servis, açıklama, yapan, durum, tarih..." autocomplete="off" aria-label="İşlem loglarında ara">
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle">
+                    <table class="table table-sm align-middle" id="deletedIslemLogTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -136,27 +139,8 @@
                                 <th class="text-end">Aksiyon</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @forelse($silinenIslemLoglari as $log)
-                                <tr data-row-id="log-{{ $log->id }}">
-                                    <td>#{{ $log->id }}</td>
-                                    <td>{{ $log->silinme_tarihi ?? '-' }}</td>
-                                    <td>{{ $log->servis?->id ? '#'.$log->servis->id : '-' }}</td>
-                                    <td>{{ $log->servisDurum?->ad ?? '-' }}</td>
-                                    <td class="text-truncate" style="max-width: 360px;">{{ $log->aciklama ?? '-' }}</td>
-                                    <td>{{ $log->silenKisi?->ad ?? '-' }}</td>
-                                    <td class="text-end">
-                                        <form method="POST" action="{{ route('settings.deletedRecords.restoreIslemLog', $log->id) }}" class="d-inline restore-form">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-success restore-btn" data-restore-url="{{ route('settings.deletedRecords.restoreIslemLog', $log->id) }}" onclick="return window.restoreDeletedRecord(this);">
-                                                <i class="feather-rotate-ccw"></i> Geri Al
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="7" class="text-center text-muted">Silinen işlem logu bulunamadı.</td></tr>
-                            @endforelse
+                        <tbody id="deletedIslemLogTbody">
+                            @include('settings.partials.deleted-islemlog-rows')
                         </tbody>
                     </table>
                 </div>
@@ -196,6 +180,60 @@
 
 @push('page_specific_main_scripts')
 <script>
+(function () {
+    var input = document.getElementById('islemLogSearchInput');
+    var tbody = document.getElementById('deletedIslemLogTbody');
+    var searchUrl = @json(route('settings.deletedRecords.searchIslemLog'));
+    var timer = null;
+    var xhr = null;
+    var lastQ = null;
+
+    function setTbodyHtml(html) {
+        if (tbody) tbody.innerHTML = html;
+    }
+
+    function loadIslemLogs(q) {
+        if (lastQ === q) return;
+        if (q === '' && lastQ === null) return;
+        if (xhr && xhr.abort) xhr.abort();
+        setTbodyHtml('<tr><td colspan="7" class="text-center text-muted">Aranıyor...</td></tr>');
+        xhr = new XMLHttpRequest();
+        xhr.open('GET', searchUrl + '?q=' + encodeURIComponent(q), true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== 4) return;
+            if (xhr.status === 0) return;
+            var data = null;
+            try { data = JSON.parse(xhr.responseText || ''); } catch (e) { data = null; }
+            if (xhr.status >= 200 && xhr.status < 300 && data && typeof data.html === 'string') {
+                lastQ = q;
+                setTbodyHtml(data.html);
+                return;
+            }
+            lastQ = null;
+            setTbodyHtml('<tr><td colspan="7" class="text-center text-danger">Arama başarısız.</td></tr>');
+        };
+        xhr.send();
+    }
+
+    if (input) {
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                loadIslemLogs((input.value || '').trim());
+            }, 300);
+        });
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                clearTimeout(timer);
+                loadIslemLogs((input.value || '').trim());
+            }
+        });
+    }
+})();
+
 window.restoreDeletedRecord = function (btnEl) {
     try {
         if (!btnEl) return false;
