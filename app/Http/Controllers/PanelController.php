@@ -885,12 +885,7 @@ class PanelController extends Controller
             ->where($silindiFilter)
             ->whereBetween('islem_tarihi', [$rangeFrom, $rangeTo])
             ->where('gerceklesme', 1)
-            ->get(['personel_id', 'ilgili_personel_id', 'servis_id', 'islem_tarihi', 'odeme_yonu', 'tutar']);
-
-        $servisIds = $kasaRows->pluck('servis_id')->filter()->unique()->values();
-        $servisPersonelMap = $servisIds->isEmpty()
-            ? collect()
-            : Servis::whereIn('id', $servisIds)->pluck('personel_id', 'id');
+            ->get(['ilgili_personel_id', 'islem_tarihi', 'odeme_yonu', 'tutar']);
 
         $kasaByDay = $kasaRows->groupBy(fn ($k) => Carbon::parse($k->islem_tarihi)->format('Y-m-d'));
 
@@ -914,18 +909,8 @@ class PanelController extends Controller
             $dayKasa = $kasaByDay->get($gun, collect());
 
             foreach ($teknisyenler as $teknisyen) {
-                $matched = $dayKasa->filter(function ($kasa) use ($teknisyen, $servisPersonelMap) {
-                    if ($kasa->personel_id == $teknisyen->id) {
-                        return true;
-                    }
-                    if ($kasa->ilgili_personel_id == $teknisyen->id) {
-                        return true;
-                    }
-                    if ($kasa->servis_id && ($servisPersonelMap[$kasa->servis_id] ?? null) == $teknisyen->id) {
-                        return true;
-                    }
-
-                    return false;
+                $matched = $dayKasa->filter(function ($kasa) use ($teknisyen) {
+                    return (int) $kasa->ilgili_personel_id === (int) $teknisyen->id;
                 });
 
                 $gelir = (float) $matched->where('odeme_yonu', 1)->sum('tutar');
@@ -1037,13 +1022,7 @@ class PanelController extends Controller
         $gunlukOzetler = [];
         foreach ($teknisyenler as $teknisyen) {
             $kasaQuery = Kasa::query()
-                ->where(function ($q) use ($teknisyen) {
-                    $q->where('personel_id', $teknisyen->id)
-                        ->orWhere('ilgili_personel_id', $teknisyen->id)
-                        ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                            $subQ->where('personel_id', $teknisyen->id);
-                        });
-                })
+                ->forTahsilEden($teknisyen->id)
                 ->whereDate('islem_tarihi', $gun)
                 ->where('gerceklesme', 1)
                 ->where(function ($q) {

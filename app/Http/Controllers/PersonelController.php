@@ -647,14 +647,8 @@ class PersonelController extends Controller
 
             $gun = Carbon::today()->format('Y-m-d');
             $kasaQuery = Kasa::query()
-                ->where(function ($q) use ($personel) {
-                    $q->where('personel_id', $personel->id)
-                        ->orWhere('ilgili_personel_id', $personel->id)
-                        ->orWhereHas('servis', function ($subQ) use ($personel) {
-                            $subQ->where('personel_id', $personel->id);
-                        });
-                })
-                ->whereDate('tarih', $gun)
+                ->forTahsilEden($personel->id)
+                ->whereDate('islem_tarihi', $gun)
                 ->where('gerceklesme', 1)
                 ->where(function ($q) {
                     $q->where('silindi', '!=', 1)

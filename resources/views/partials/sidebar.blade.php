@@ -28,13 +28,7 @@
                                       ->orWhereNull('silindi');
                                 });
                             if ($loggedInUser->poz_id == $tsrnTeknisyenPozisyonId) {
-                                $bekleyenSorgu->where(function($q) use ($loggedInUser) {
-                                    $q->where('personel_id', $loggedInUser->id)
-                                      ->orWhere('ilgili_personel_id', $loggedInUser->id)
-                                      ->orWhereHas('servis', function($subQ) use ($loggedInUser) {
-                                          $subQ->where('personel_id', $loggedInUser->id);
-                                      });
-                                });
+                                $bekleyenSorgu->forTahsilEden($loggedInUser->id);
                             }
                             $bekleyenOdemeCount = $bekleyenSorgu->count();
                         } catch (\Throwable $e) {

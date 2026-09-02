@@ -58,16 +58,7 @@ class KasaController extends Controller
 
             // Eğer giriş yapan kullanıcı bir teknisyen ise, kayıtları filtrele
             if ($loggedInUser && $loggedInUser->poz_id === $teknisyenPozisyonId) {
-                $query->where(function($q) use ($loggedInUser) {
-                    // Teknisyene doğrudan atanmış kasa kayıtları
-                    $q->where('personel_id', $loggedInUser->id)
-                      ->orWhere('ilgili_personel_id', $loggedInUser->id);
-
-                    // Teknisyene atanmış servislere bağlı kasa kayıtları
-                    $q->orWhereHas('servis', function($subQ) use ($loggedInUser) {
-                        $subQ->where('personel_id', $loggedInUser->id);
-                    });
-                });
+                $query->forTahsilEden($loggedInUser->id);
             }
 
             // Arama filtreleri
@@ -367,13 +358,7 @@ class KasaController extends Controller
             $gun = $date->format('Y-m-d');
             foreach ($teknisyenler as $teknisyen) {
                 $kasaQuery = Kasa::query()
-                    ->where(function ($q) use ($teknisyen) {
-                        $q->where('personel_id', $teknisyen->id)
-                            ->orWhere('ilgili_personel_id', $teknisyen->id)
-                            ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                                $subQ->where('personel_id', $teknisyen->id);
-                            });
-                    })
+                    ->forTahsilEden($teknisyen->id)
                     ->whereDate('islem_tarihi', $gun)
                     ->where('gerceklesme', 1)
                     ->where(function ($q) {
@@ -496,13 +481,7 @@ class KasaController extends Controller
         $gunlukOzetler = [];
         foreach ($teknisyenler as $teknisyen) {
             $kasaQuery = Kasa::query()
-                ->where(function ($q) use ($teknisyen) {
-                    $q->where('personel_id', $teknisyen->id)
-                        ->orWhere('ilgili_personel_id', $teknisyen->id)
-                        ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                            $subQ->where('personel_id', $teknisyen->id);
-                        });
-                })
+                ->forTahsilEden($teknisyen->id)
                 ->whereBetween('islem_tarihi', [$dateFrom, $dateTo])
                 ->where('gerceklesme', 1)
                 ->where(function ($q) {
@@ -580,13 +559,7 @@ class KasaController extends Controller
 
             // Bekleyen ödeme (tarih filtresi yok) varsa satır listelensin
             $bekleyenTutar = (float) Kasa::query()
-                ->where(function ($q) use ($teknisyen) {
-                    $q->where('personel_id', $teknisyen->id)
-                        ->orWhere('ilgili_personel_id', $teknisyen->id)
-                        ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                            $subQ->where('personel_id', $teknisyen->id);
-                        });
-                })
+                ->forTahsilEden($teknisyen->id)
                 ->where('gerceklesme', 0)
                 ->where(function ($q) {
                     $q->where('silindi', '!=', 1)->orWhereNull('silindi');
@@ -621,13 +594,7 @@ class KasaController extends Controller
         $teknisyenIds = $teknisyenler->pluck('id')->toArray();
         if (!empty($teknisyenIds)) {
             $bekleyenOdemeToplam = (float) Kasa::query()
-                ->where(function ($q) use ($teknisyenIds) {
-                    $q->whereIn('personel_id', $teknisyenIds)
-                        ->orWhereIn('ilgili_personel_id', $teknisyenIds)
-                        ->orWhereHas('servis', function ($subQ) use ($teknisyenIds) {
-                            $subQ->whereIn('personel_id', $teknisyenIds);
-                        });
-                })
+                ->forTahsilEdenIn($teknisyenIds)
                 ->where('gerceklesme', 0)
                 ->where(function ($q) {
                     $q->where('silindi', '!=', 1)->orWhereNull('silindi');
@@ -921,13 +888,7 @@ class KasaController extends Controller
         $gunlukOzetler = [];
         foreach ($teknisyenler as $teknisyen) {
             $kasaQuery = Kasa::query()
-                ->where(function ($q) use ($teknisyen) {
-                    $q->where('personel_id', $teknisyen->id)
-                        ->orWhere('ilgili_personel_id', $teknisyen->id)
-                        ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                            $subQ->where('personel_id', $teknisyen->id);
-                        });
-                })
+                ->forTahsilEden($teknisyen->id)
                 ->whereBetween('islem_tarihi', [$dateFrom, $dateTo])
                 ->where('gerceklesme', 1)
                 ->where(function ($q) {
@@ -1063,13 +1024,7 @@ class KasaController extends Controller
 
         // Tarih aralığındaki tamamlanan hareketler
         $kasaTamamlanan = Kasa::with(['odemeTuru', 'odemeSekli', 'servis.musteri', 'servis.servisDurum', 'servis.marka', 'servis.cihazTuru'])
-            ->where(function ($q) use ($teknisyen) {
-                $q->where('personel_id', $teknisyen->id)
-                  ->orWhere('ilgili_personel_id', $teknisyen->id)
-                  ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                      $subQ->where('personel_id', $teknisyen->id);
-                  });
-            })
+            ->forTahsilEden($teknisyen->id)
             ->whereBetween('islem_tarihi', [$dateFrom, $dateTo])
             ->where('gerceklesme', 1)
             ->where(function ($q) {
@@ -1081,13 +1036,7 @@ class KasaController extends Controller
 
         // Bekleyen ödemeler (tarih filtresi yok) – bekleyen-odemeler sayfası gibi, kırmızı gösterilecek
         $kasaBekleyen = Kasa::with(['odemeTuru', 'odemeSekli', 'servis.musteri', 'servis.servisDurum', 'servis.marka', 'servis.cihazTuru'])
-            ->where(function ($q) use ($teknisyen) {
-                $q->where('personel_id', $teknisyen->id)
-                  ->orWhere('ilgili_personel_id', $teknisyen->id)
-                  ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                      $subQ->where('personel_id', $teknisyen->id);
-                  });
-            })
+            ->forTahsilEden($teknisyen->id)
             ->where('gerceklesme', 0)
             ->where(function ($q) {
                 $q->where('silindi', '!=', 1)->orWhereNull('silindi');
@@ -1344,13 +1293,7 @@ class KasaController extends Controller
         $gunlukOzetler = [];
         foreach ($teknisyenler as $teknisyen) {
             $kasaQuery = Kasa::query()
-                ->where(function ($q) use ($teknisyen) {
-                    $q->where('personel_id', $teknisyen->id)
-                        ->orWhere('ilgili_personel_id', $teknisyen->id)
-                        ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                            $subQ->where('personel_id', $teknisyen->id);
-                        });
-                })
+                ->forTahsilEden($teknisyen->id)
                 ->where('gerceklesme', 0)
                 ->where(function ($q) {
                     $q->where('silindi', '!=', 1)
@@ -1451,13 +1394,7 @@ class KasaController extends Controller
         }
 
         $kasaHareketleri = Kasa::with(['odemeTuru', 'odemeSekli', 'servis.musteri', 'servis.servisDurum', 'servis.marka', 'servis.cihazTuru'])
-            ->where(function ($q) use ($teknisyen) {
-                $q->where('personel_id', $teknisyen->id)
-                  ->orWhere('ilgili_personel_id', $teknisyen->id)
-                  ->orWhereHas('servis', function ($subQ) use ($teknisyen) {
-                      $subQ->where('personel_id', $teknisyen->id);
-                  });
-            })
+            ->forTahsilEden($teknisyen->id)
             ->where('gerceklesme', 0)
             ->where(function ($q) {
                 $q->where('silindi', '!=', 1)

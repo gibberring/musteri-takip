@@ -147,6 +147,8 @@ Route::get('/ayarlar', [SettingsController::class, 'index'])->name('settings.ind
 Route::post('/ayarlar', [SettingsController::class, 'update'])->name('settings.update')->middleware('auth');
 Route::get('/ayarlar/silinen-kayitlar', [DeletedRecordsController::class, 'index'])->name('settings.deletedRecords.index')->middleware('auth');
 Route::get('/ayarlar/silinen-kayitlar/islemlog', [DeletedRecordsController::class, 'searchIslemLog'])->name('settings.deletedRecords.searchIslemLog')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/kasa', [DeletedRecordsController::class, 'searchKasa'])->name('settings.deletedRecords.searchKasa')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/servis', [DeletedRecordsController::class, 'searchServis'])->name('settings.deletedRecords.searchServis')->middleware('auth');
 Route::post('/ayarlar/silinen-kayitlar/servis/{servis}/restore', [DeletedRecordsController::class, 'restoreServis'])->name('settings.deletedRecords.restoreServis')->middleware('auth');
 Route::post('/ayarlar/silinen-kayitlar/kasa/{kasa}/restore', [DeletedRecordsController::class, 'restoreKasa'])->name('settings.deletedRecords.restoreKasa')->middleware('auth');
 Route::post('/ayarlar/silinen-kayitlar/islemlog/{log}/restore', [DeletedRecordsController::class, 'restoreIslemLog'])->name('settings.deletedRecords.restoreIslemLog')->middleware('auth');

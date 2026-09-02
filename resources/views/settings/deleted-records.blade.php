@@ -41,8 +41,11 @@
 
         <div class="tab-content pt-3">
             <div class="tab-pane fade show active" id="servis" role="tabpanel">
+                <div class="d-flex justify-content-end mb-2">
+                    <input type="search" id="servisSearchInput" class="form-control form-control-sm w-auto" style="max-width: 280px;" placeholder="Servis, müşteri, telefon, teknisyen, durum, marka..." autocomplete="off" aria-label="Silinen servis kayıtlarında ara">
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle">
+                    <table class="table table-sm align-middle" id="deletedServisTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -54,35 +57,19 @@
                                 <th class="text-end">Aksiyon</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @forelse($silinenServisler as $servis)
-                                <tr data-row-id="servis-{{ $servis->id }}">
-                                    <td>#{{ $servis->id }}</td>
-                                    <td>{{ $servis->silinme_tarihi ?? '-' }}</td>
-                                    <td>{{ $servis->musteri?->ad ?? '-' }}</td>
-                                    <td>{{ $servis->personel?->ad ?? '-' }}</td>
-                                    <td>{{ $servis->servisDurum?->ad ?? '-' }}</td>
-                                    <td>{{ $servis->silenKisi?->ad ?? '-' }}</td>
-                                    <td class="text-end">
-                                        <form method="POST" action="{{ route('settings.deletedRecords.restoreServis', $servis->id) }}" class="d-inline restore-form">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-success restore-btn" data-restore-url="{{ route('settings.deletedRecords.restoreServis', $servis->id) }}" onclick="return window.restoreDeletedRecord(this);">
-                                                <i class="feather-rotate-ccw"></i> Geri Al
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="7" class="text-center text-muted">Silinen servis kaydı bulunamadı.</td></tr>
-                            @endforelse
+                        <tbody id="deletedServisTbody">
+                            @include('settings.partials.deleted-servis-rows')
                         </tbody>
                     </table>
                 </div>
             </div>
 
             <div class="tab-pane fade" id="kasa" role="tabpanel">
+                <div class="d-flex justify-content-end mb-2">
+                    <input type="search" id="kasaSearchInput" class="form-control form-control-sm w-auto" style="max-width: 280px;" placeholder="Tutar, teknisyen, servis, açıklama, tarih, ödeme..." autocomplete="off" aria-label="Silinen kasa kayıtlarında ara">
+                </div>
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle">
+                    <table class="table table-sm align-middle" id="deletedKasaTable">
                         <thead>
                             <tr>
                                 <th>ID</th>
@@ -95,28 +82,8 @@
                                 <th class="text-end">Aksiyon</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            @forelse($silinenKasa as $kasa)
-                                <tr data-row-id="kasa-{{ $kasa->id }}">
-                                    <td>#{{ $kasa->id }}</td>
-                                    <td>{{ $kasa->silinme_tarihi ?? '-' }}</td>
-                                    <td>{{ $kasa->servis?->id ? '#'.$kasa->servis->id : '-' }}</td>
-                                    <td>{{ $kasa->ilgiliPersonel?->ad ?? $kasa->personel?->ad ?? '-' }}</td>
-                                    <td>{{ $kasa->odemeTuru?->ad ?? '-' }}</td>
-                                    <td>{{ number_format((float) $kasa->tutar, 2, ',', '.') }} TL</td>
-                                    <td>{{ $kasa->silenKisi?->ad ?? '-' }}</td>
-                                    <td class="text-end">
-                                        <form method="POST" action="{{ route('settings.deletedRecords.restoreKasa', $kasa->id) }}" class="d-inline restore-form">
-                                            @csrf
-                                            <button type="submit" class="btn btn-sm btn-success restore-btn" data-restore-url="{{ route('settings.deletedRecords.restoreKasa', $kasa->id) }}" onclick="return window.restoreDeletedRecord(this);">
-                                                <i class="feather-rotate-ccw"></i> Geri Al
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
-                            @empty
-                                <tr><td colspan="8" class="text-center text-muted">Silinen kasa kaydı bulunamadı.</td></tr>
-                            @endforelse
+                        <tbody id="deletedKasaTbody">
+                            @include('settings.partials.deleted-kasa-rows')
                         </tbody>
                     </table>
                 </div>
@@ -181,57 +148,62 @@
 @push('page_specific_main_scripts')
 <script>
 (function () {
-    var input = document.getElementById('islemLogSearchInput');
-    var tbody = document.getElementById('deletedIslemLogTbody');
-    var searchUrl = @json(route('settings.deletedRecords.searchIslemLog'));
-    var timer = null;
-    var xhr = null;
-    var lastQ = null;
+    function bindDeletedSearch(inputId, tbodyId, searchUrl, colCount) {
+        var input = document.getElementById(inputId);
+        var tbody = document.getElementById(tbodyId);
+        var timer = null;
+        var xhr = null;
+        var lastQ = null;
 
-    function setTbodyHtml(html) {
-        if (tbody) tbody.innerHTML = html;
-    }
+        function setTbodyHtml(html) {
+            if (tbody) tbody.innerHTML = html;
+        }
 
-    function loadIslemLogs(q) {
-        if (lastQ === q) return;
-        if (q === '' && lastQ === null) return;
-        if (xhr && xhr.abort) xhr.abort();
-        setTbodyHtml('<tr><td colspan="7" class="text-center text-muted">Aranıyor...</td></tr>');
-        xhr = new XMLHttpRequest();
-        xhr.open('GET', searchUrl + '?q=' + encodeURIComponent(q), true);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.setRequestHeader('Accept', 'application/json');
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== 4) return;
-            if (xhr.status === 0) return;
-            var data = null;
-            try { data = JSON.parse(xhr.responseText || ''); } catch (e) { data = null; }
-            if (xhr.status >= 200 && xhr.status < 300 && data && typeof data.html === 'string') {
-                lastQ = q;
-                setTbodyHtml(data.html);
-                return;
-            }
-            lastQ = null;
-            setTbodyHtml('<tr><td colspan="7" class="text-center text-danger">Arama başarısız.</td></tr>');
-        };
-        xhr.send();
-    }
+        function loadRows(q) {
+            if (lastQ === q) return;
+            if (q === '' && lastQ === null) return;
+            if (xhr && xhr.abort) xhr.abort();
+            setTbodyHtml('<tr><td colspan="' + colCount + '" class="text-center text-muted">Aranıyor...</td></tr>');
+            xhr = new XMLHttpRequest();
+            xhr.open('GET', searchUrl + '?q=' + encodeURIComponent(q), true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Accept', 'application/json');
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState !== 4) return;
+                if (xhr.status === 0) return;
+                var data = null;
+                try { data = JSON.parse(xhr.responseText || ''); } catch (e) { data = null; }
+                if (xhr.status >= 200 && xhr.status < 300 && data && typeof data.html === 'string') {
+                    lastQ = q;
+                    setTbodyHtml(data.html);
+                    return;
+                }
+                lastQ = null;
+                setTbodyHtml('<tr><td colspan="' + colCount + '" class="text-center text-danger">Arama başarısız.</td></tr>');
+            };
+            xhr.send();
+        }
 
-    if (input) {
-        input.addEventListener('input', function () {
-            clearTimeout(timer);
-            timer = setTimeout(function () {
-                loadIslemLogs((input.value || '').trim());
-            }, 300);
-        });
-        input.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
+        if (input) {
+            input.addEventListener('input', function () {
                 clearTimeout(timer);
-                loadIslemLogs((input.value || '').trim());
-            }
-        });
+                timer = setTimeout(function () {
+                    loadRows((input.value || '').trim());
+                }, 300);
+            });
+            input.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    clearTimeout(timer);
+                    loadRows((input.value || '').trim());
+                }
+            });
+        }
     }
+
+    bindDeletedSearch('servisSearchInput', 'deletedServisTbody', @json(route('settings.deletedRecords.searchServis')), 7);
+    bindDeletedSearch('islemLogSearchInput', 'deletedIslemLogTbody', @json(route('settings.deletedRecords.searchIslemLog')), 7);
+    bindDeletedSearch('kasaSearchInput', 'deletedKasaTbody', @json(route('settings.deletedRecords.searchKasa')), 8);
 })();
 
 window.restoreDeletedRecord = function (btnEl) {

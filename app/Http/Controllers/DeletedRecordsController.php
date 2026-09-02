@@ -40,17 +40,9 @@ class DeletedRecordsController extends Controller
         // belleğini aşıp 500 veriyordu; audit sekmesiyle aynı üst sınır.
         $listLimit = 500;
 
-        $silinenServisler = Servis::with(['musteri', 'personel', 'servisDurum', 'silenKisi'])
-            ->where('silindi', 1)
-            ->orderByDesc('silinme_tarihi')
-            ->limit($listLimit)
-            ->get();
+        $silinenServisler = $this->deletedServisQuery(null, $listLimit)->get();
 
-        $silinenKasa = Kasa::with(['personel', 'ilgiliPersonel', 'odemeTuru', 'odemeSekli', 'servis', 'silenKisi'])
-            ->where('silindi', 1)
-            ->orderByDesc('silinme_tarihi')
-            ->limit($listLimit)
-            ->get();
+        $silinenKasa = $this->deletedKasaQuery(null, $listLimit)->get();
 
         $silinenIslemLoglari = $this->deletedIslemLogQuery(null, $listLimit)->get();
 
@@ -85,6 +77,44 @@ class DeletedRecordsController extends Controller
         return response()->json([
             'html' => $html,
             'count' => $logs->count(),
+        ]);
+    }
+
+    public function searchKasa(Request $request)
+    {
+        $this->authorizePatron();
+
+        $q = trim((string) $request->input('q', ''));
+        $rows = $this->deletedKasaQuery($q, 500)->get();
+        $html = view('settings.partials.deleted-kasa-rows', [
+            'silinenKasa' => $rows,
+            'emptyMessage' => $q === ''
+                ? 'Silinen kasa kaydı bulunamadı.'
+                : 'Eşleşen silinen kasa kaydı bulunamadı.',
+        ])->render();
+
+        return response()->json([
+            'html' => $html,
+            'count' => $rows->count(),
+        ]);
+    }
+
+    public function searchServis(Request $request)
+    {
+        $this->authorizePatron();
+
+        $q = trim((string) $request->input('q', ''));
+        $rows = $this->deletedServisQuery($q, 500)->get();
+        $html = view('settings.partials.deleted-servis-rows', [
+            'silinenServisler' => $rows,
+            'emptyMessage' => $q === ''
+                ? 'Silinen servis kaydı bulunamadı.'
+                : 'Eşleşen silinen servis kaydı bulunamadı.',
+        ])->render();
+
+        return response()->json([
+            'html' => $html,
+            'count' => $rows->count(),
         ]);
     }
 
@@ -127,6 +157,131 @@ class DeletedRecordsController extends Controller
             if ($normalized !== '' && ctype_digit($normalized)) {
                 $q->orWhere('id', $normalized)
                     ->orWhere('servis_id', $normalized);
+            }
+        });
+
+        return $query->limit($limit);
+    }
+
+    private function deletedServisQuery(?string $search, int $limit = 500)
+    {
+        $query = Servis::with(['musteri', 'personel', 'servisDurum', 'silenKisi', 'marka', 'cihazTuru'])
+            ->where('silindi', 1)
+            ->orderByDesc('silinme_tarihi')
+            ->orderByDesc('id');
+
+        $term = trim((string) $search);
+        if ($term === '') {
+            return $query->limit($limit);
+        }
+
+        $term = mb_substr($term, 0, 100);
+        $normalized = ltrim($term, '#');
+        $like = '%' . addcslashes($term, '%_\\') . '%';
+        $likeNorm = '%' . addcslashes($normalized, '%_\\') . '%';
+        $phoneDigits = preg_replace('/\D+/', '', $normalized);
+
+        $query->where(function ($q) use ($like, $likeNorm, $normalized, $phoneDigits) {
+            $q->where('id', 'like', $likeNorm)
+                ->orWhere('tarih', 'like', $like)
+                ->orWhere('saat', 'like', $like)
+                ->orWhere('silinme_tarihi', 'like', $like)
+                ->orWhere('cihaz_model', 'like', $like)
+                ->orWhereHas('musteri', function ($pq) use ($like, $phoneDigits) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('tel1', 'like', $like)
+                        ->orWhere('tel2', 'like', $like);
+                    if ($phoneDigits !== '' && mb_strlen($phoneDigits) >= 3) {
+                        $phoneLike = '%' . addcslashes($phoneDigits, '%_\\') . '%';
+                        $pq->orWhere('tel1', 'like', $phoneLike)
+                            ->orWhere('tel2', 'like', $phoneLike);
+                    }
+                })
+                ->orWhereHas('personel', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                })
+                ->orWhereHas('silenKisi', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                })
+                ->orWhereHas('servisDurum', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like);
+                })
+                ->orWhereHas('marka', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like);
+                })
+                ->orWhereHas('cihazTuru', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like);
+                });
+
+            if ($normalized !== '' && ctype_digit($normalized)) {
+                $q->orWhere('id', $normalized);
+            }
+        });
+
+        return $query->limit($limit);
+    }
+
+    private function deletedKasaQuery(?string $search, int $limit = 500)
+    {
+        $query = Kasa::onlyDeleted()
+            ->with(['personel', 'ilgiliPersonel', 'odemeTuru', 'odemeSekli', 'servis', 'silenKisi'])
+            ->orderByDesc('silinme_tarihi')
+            ->orderByDesc('id');
+
+        $term = trim((string) $search);
+        if ($term === '') {
+            return $query->limit($limit);
+        }
+
+        $term = mb_substr($term, 0, 100);
+        $normalized = ltrim($term, '#');
+        $like = '%' . addcslashes($term, '%_\\') . '%';
+        $likeNorm = '%' . addcslashes($normalized, '%_\\') . '%';
+
+        $amountCandidate = str_replace([' ', "\u{00A0}"], '', $normalized);
+        $amountCandidate = str_replace('.', '', $amountCandidate);
+        $amountCandidate = str_replace(',', '.', $amountCandidate);
+        $hasAmount = $amountCandidate !== '' && is_numeric($amountCandidate);
+
+        $query->where(function ($q) use ($like, $likeNorm, $normalized, $hasAmount, $amountCandidate) {
+            $q->where('aciklama', 'like', $like)
+                ->orWhere('tarih', 'like', $like)
+                ->orWhere('saat', 'like', $like)
+                ->orWhere('islem_tarihi', 'like', $like)
+                ->orWhere('islem_saati', 'like', $like)
+                ->orWhere('silinme_tarihi', 'like', $like)
+                ->orWhere('tutar', 'like', $likeNorm)
+                ->orWhere('id', 'like', $likeNorm)
+                ->orWhere('servis_id', 'like', $likeNorm)
+                ->orWhereHas('ilgiliPersonel', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                })
+                ->orWhereHas('personel', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                })
+                ->orWhereHas('odemeSekli', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like);
+                })
+                ->orWhereHas('odemeTuru', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like);
+                })
+                ->orWhereHas('silenKisi', function ($pq) use ($like) {
+                    $pq->where('ad', 'like', $like)
+                        ->orWhere('nick', 'like', $like);
+                });
+
+            if ($normalized !== '' && ctype_digit($normalized)) {
+                $q->orWhere('id', $normalized)
+                    ->orWhere('servis_id', $normalized);
+            }
+
+            if ($hasAmount) {
+                $q->orWhere('tutar', $amountCandidate)
+                    ->orWhere('tutar', 'like', '%' . addcslashes($amountCandidate, '%_\\') . '%');
             }
         });
 

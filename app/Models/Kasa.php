@@ -54,6 +54,20 @@ class Kasa extends Model
     }
 
     /**
+     * Gelir/gider sahibi = tahsil eden. kasa.personel_id (işlemi yapan)
+     * ve servis.personel_id (şu anki teknisyen) kullanılmaz.
+     */
+    public function scopeForTahsilEden($query, $personelId)
+    {
+        return $query->where('ilgili_personel_id', $personelId);
+    }
+
+    public function scopeForTahsilEdenIn($query, array $personelIds)
+    {
+        return $query->whereIn('ilgili_personel_id', $personelIds);
+    }
+
+    /**
      * Kasa kaydının ait olduğu servisi getirir.
      */
     public function servis(): BelongsTo
