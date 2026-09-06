@@ -264,7 +264,9 @@ class PersonelController extends Controller
         }
 
         try {
-            $dataToCreate = $request->except('sifre_confirmation', '_token');
+            // two_factor_* alanları yalnızca TwoFactorController akışından set edilmeli;
+            // bu formdan geçerlerse başka bir personelin 2FA'sı kapatılabilir/ele geçirilebilir.
+            $dataToCreate = $request->except('sifre_confirmation', '_token', 'two_factor_secret', 'two_factor_enabled', 'two_factor_verified_at');
             $dataToCreate['sifre'] = Hash::make($request->input('sifre'));
             // uye_firma_id ve kaydeden_personel_id gibi alanlar gerekiyorsa burada atanabilir.
             // Örnek: $dataToCreate['uye_firma_id'] = Auth::user()->uye_firma_id;
@@ -398,7 +400,9 @@ class PersonelController extends Controller
         }
 
         try {
-            $dataToUpdate = $request->except('sifre', 'sifre_confirmation', '_token', '_method', 'personel_id');
+            // two_factor_* alanları yalnızca TwoFactorController akışından set edilmeli;
+            // bu formdan geçerlerse başka bir personelin 2FA'sı kapatılabilir/ele geçirilebilir.
+            $dataToUpdate = $request->except('sifre', 'sifre_confirmation', '_token', '_method', 'personel_id', 'two_factor_secret', 'two_factor_enabled', 'two_factor_verified_at');
 
             // aktif = istihdam/yönlendirme durumu; mesai_basladimi = giriş/mesai.
             // Bu formda Durum=pasif seçilirse mesai de 0 yapılır.

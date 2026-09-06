@@ -7,6 +7,7 @@ use App\Models\Personel;
 use Carbon\Carbon;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class LoginController extends Controller
@@ -135,9 +136,15 @@ class LoginController extends Controller
     protected function sendFailedLoginResponse(Request $request)
     {
         $username = $request->input($this->username());
-        if ($username) {
-            $personel = Personel::where('nick', $username)->first(['id', 'aktif', 'mesai_basladimi', 'is_basi_tarih', 'updated_at', 'created_at']);
-            if ($personel && ((int) $personel->aktif === 0 || (int) $personel->mesai_basladimi === 0)) {
+        $password = $request->input('password');
+
+        if ($username && $password) {
+            $personel = Personel::where('nick', $username)->first(['id', 'sifre', 'aktif', 'mesai_basladimi', 'is_basi_tarih', 'updated_at', 'created_at']);
+            if (
+                $personel
+                && Hash::check($password, $personel->sifre)
+                && ((int) $personel->aktif === 0 || (int) $personel->mesai_basladimi === 0)
+            ) {
                 $baslangic = $personel->is_basi_tarih ?: $personel->created_at;
                 $bitis = $personel->updated_at ?: Carbon::now();
                 $gunSayisi = 0;
