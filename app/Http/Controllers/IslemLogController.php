@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Islemloglari;
+use App\Models\Personel;
 use App\Models\Servis;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
@@ -71,17 +72,220 @@ class IslemLogController extends Controller
         }
     }
 
-    private function clearTeknisyenYonlendirmeAnswers(int $servisId): void
+    /**
+     * Silinen 9098 loguna ait cevap0 + 13234/13235'i siler.
+     * Diğer 9098 yönlendirmelerinin cevaplarına dokunmaz (tüm 13234 wipe yok).
+     */
+    private function clearTeknisyenYonlendirmeAnswers(int $servisId, Islemloglari $deletedLog): void
     {
-        $cevap0Ids = ServisDurumCevap0::where('servis_id', $servisId)
-            ->where('servis_durum_id', 9098)
-            ->pluck('id')
-            ->all();
-
-        if (!empty($cevap0Ids)) {
-            ServisDurumCevap::whereIn('durumCevap0_id', $cevap0Ids)->delete();
-            ServisDurumCevap0::whereIn('id', $cevap0Ids)->delete();
+        $cevap0 = $this->findCevap0ForDeletedYonlendirmeLog($servisId, $deletedLog);
+        if (!$cevap0) {
+            return;
         }
+
+        ServisDurumCevap::where('durumCevap0_id', $cevap0->id)->delete();
+        $cevap0->delete();
+    }
+
+    /**
+     * Log ile cevap0 arasında FK yok. Aktif 9098 logları (silinen dahil)
+     * cevap0 ile sondan hizalanır: yeni atamanın cevabı eski log silinince uçmaz.
+     * Eşleşme yoksa hiçbir 13234 silinmez.
+     */
+    private function findCevap0ForDeletedYonlendirmeLog(int $servisId, Islemloglari $deletedLog): ?ServisDurumCevap0
+    {
+        $cevap0s = ServisDurumCevap0::where('servis_id', $servisId)
+            ->where('servis_durum_id', 9098)
+            ->orderBy('id')
+            ->get()
+            ->values();
+
+        if ($cevap0s->isEmpty()) {
+            return null;
+        }
+
+        $logIds = Islemloglari::where('servis_id', $servisId)
+            ->where('servis_durum_id', 9098)
+            ->where(function ($q) use ($deletedLog) {
+                $q->where(function ($active) {
+                    $active->where('silindi', '!=', 1)
+                        ->orWhereNull('silindi');
+                })->orWhere('id', $deletedLog->id);
+            })
+            ->orderBy('id')
+            ->pluck('id')
+            ->values();
+
+        $logIndex = $logIds->search($deletedLog->id);
+        if ($logIndex === false) {
+            return null;
+        }
+
+        $offsetFromEnd = $logIds->count() - 1 - (int) $logIndex;
+        $cevapIndex = $cevap0s->count() - 1 - $offsetFromEnd;
+        if ($cevapIndex < 0 || $cevapIndex >= $cevap0s->count()) {
+            return null;
+        }
+
+        return $cevap0s[$cevapIndex];
+    }
+
+    /**
+     * Aktif 9098 logunu cevap0 ile sondan hizalar (silme wipe'ına dokunmaz).
+     */
+    private function findCevap0ForYonlendirmeLog(int $servisId, Islemloglari $log): ?ServisDurumCevap0
+    {
+        $cevap0s = ServisDurumCevap0::where('servis_id', $servisId)
+            ->where('servis_durum_id', 9098)
+            ->orderBy('id')
+            ->get()
+            ->values();
+
+        if ($cevap0s->isEmpty()) {
+            return null;
+        }
+
+        $logIds = Islemloglari::where('servis_id', $servisId)
+            ->where('servis_durum_id', 9098)
+            ->notDeleted()
+            ->orderBy('id')
+            ->pluck('id')
+            ->values();
+
+        $logIndex = $logIds->search($log->id);
+        if ($logIndex === false) {
+            return null;
+        }
+
+        $offsetFromEnd = $logIds->count() - 1 - (int) $logIndex;
+        $cevapIndex = $cevap0s->count() - 1 - $offsetFromEnd;
+        if ($cevapIndex < 0 || $cevapIndex >= $cevap0s->count()) {
+            return null;
+        }
+
+        return $cevap0s[$cevapIndex];
+    }
+
+    /**
+     * @return array{0: int|null, 1: string|null}
+     */
+    private function resolveYonlendirmeFields(Islemloglari $log): array
+    {
+        $teknisyenId = null;
+        $gidisTarihi = null;
+        $servis = $log->servis_id ? Servis::find($log->servis_id) : null;
+
+        if ((int) $log->servis_durum_id === 9098 && $log->servis_id) {
+            $cevap0 = $this->findCevap0ForYonlendirmeLog((int) $log->servis_id, $log);
+            if ($cevap0) {
+                $teknisyenCevap = ServisDurumCevap::where('durumCevap0_id', $cevap0->id)
+                    ->where('soru_id', 13234)
+                    ->first();
+                $gidisCevap = ServisDurumCevap::where('durumCevap0_id', $cevap0->id)
+                    ->where('soru_id', 13235)
+                    ->first();
+                if ($teknisyenCevap && $teknisyenCevap->cevap) {
+                    $teknisyenId = (int) $teknisyenCevap->cevap;
+                }
+                if ($gidisCevap && $gidisCevap->cevap) {
+                    $gidisTarihi = (string) $gidisCevap->cevap;
+                }
+            }
+        }
+
+        if (!$teknisyenId && $servis && $servis->personel_id) {
+            $teknisyenId = (int) $servis->personel_id;
+        }
+        if (!$gidisTarihi && $servis && !empty($servis->tarih)) {
+            $gidisTarihi = (string) $servis->tarih;
+        }
+        if (!$gidisTarihi && $log->aciklama && preg_match('/Gidi[sş] Tarihi:\s*(\d{4}-\d{2}-\d{2})/u', (string) $log->aciklama, $m)) {
+            $gidisTarihi = $m[1];
+        }
+
+        return [$teknisyenId ?: null, $gidisTarihi ?: null];
+    }
+
+    private function aktifTeknisyenListesi(?int $includeId = null)
+    {
+        return Personel::query()
+            ->where('poz_id', 1077)
+            ->where(function ($q) use ($includeId) {
+                $q->where('aktif', 1);
+                if ($includeId) {
+                    $q->orWhere('id', $includeId);
+                }
+            })
+            ->orderBy('ad')
+            ->get(['id', 'ad']);
+    }
+
+    private function buildYonlendirmeLogAciklama(int $teknisyenId, string $gidisTarihi): string
+    {
+        $teknisyenSoru = ServisDurumSoru::find(13234);
+        $gidisSoru = ServisDurumSoru::find(13235);
+        $personel = Personel::find($teknisyenId);
+
+        return '- ' . ($teknisyenSoru->soru ?? 'Teknisyen') . ': ' . ($personel ? $personel->ad : 'Bilinmiyor')
+            . '<br>- ' . ($gidisSoru->soru ?? 'Gidiş Tarihi') . ': ' . $gidisTarihi;
+    }
+
+    private function upsertYonlendirmeCevaplari(int $servisId, Islemloglari $log, int $teknisyenId, string $gidisTarihi): void
+    {
+        $cevap0 = $this->findCevap0ForYonlendirmeLog($servisId, $log);
+        if (!$cevap0) {
+            $servis = Servis::find($servisId);
+            $cevap0 = new ServisDurumCevap0();
+            $cevap0->servis_id = $servisId;
+            $cevap0->servis_durum_id = 9098;
+            $cevap0->tarih = $log->tarih;
+            $cevap0->saat = $log->saat;
+            if ($servis && isset($servis->uye_firma_id)) {
+                $cevap0->uye_firma_id = $servis->uye_firma_id;
+            }
+            $cevap0->save();
+        }
+
+        $this->upsertCevap($cevap0, 13234, (string) $teknisyenId);
+        $this->upsertCevap($cevap0, 13235, $gidisTarihi);
+    }
+
+    private function upsertCevap(ServisDurumCevap0 $cevap0, int $soruId, string $value): void
+    {
+        $cevap = ServisDurumCevap::where('durumCevap0_id', $cevap0->id)
+            ->where('soru_id', $soruId)
+            ->first();
+        if (!$cevap) {
+            $cevap = new ServisDurumCevap();
+            $cevap->durumCevap0_id = $cevap0->id;
+            $cevap->soru_id = $soruId;
+            if (isset($cevap0->uye_firma_id)) {
+                $cevap->uye_firma_id = $cevap0->uye_firma_id;
+            }
+        }
+        $cevap->cevap = $value;
+        $cevap->save();
+    }
+
+    private function isLatestServisLog(Islemloglari $log): bool
+    {
+        $latestId = Islemloglari::where('servis_id', $log->servis_id)
+            ->notDeleted()
+            ->orderBy('id', 'desc')
+            ->value('id');
+
+        return (int) $latestId === (int) $log->id;
+    }
+
+    private function plainTextFromBr(string $text): string
+    {
+        $text = preg_replace('/<br\s*\/?>/i', "\n", $text) ?? $text;
+        return html_entity_decode($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    private function brFromPlainText(string $text): string
+    {
+        return preg_replace("/\r\n|\r|\n/", '<br>', $text) ?? $text;
     }
 
     public function show($islemlog)
@@ -92,6 +296,7 @@ class IslemLogController extends Controller
             $islemLog = Islemloglari::with(['personel', 'servisDurum'])
                 ->notDeleted()
                 ->findOrFail($islemlog);
+            [$teknisyenId, $gidisTarihi] = $this->resolveYonlendirmeFields($islemLog);
             // Frontend net alanlar bekliyor: id, tarih, saat, aciklama, servis_durum_id
             return response()->json([
                 'id' => $islemLog->id,
@@ -101,6 +306,9 @@ class IslemLogController extends Controller
                 'servis_durum_id' => $islemLog->servis_durum_id,
                 'personel' => $islemLog->personel, // opsiyonel
                 'servis_durum' => $islemLog->servisDurum, // opsiyonel
+                'teknisyen_id' => $teknisyenId,
+                'gidis_tarihi' => $gidisTarihi,
+                'teknisyenler' => $this->aktifTeknisyenListesi($teknisyenId),
             ]);
         } catch (\Exception $e) {
             Log::error('İşlem logu detayları çekilirken hata: ' . $e->getMessage(), ['log_id' => $islemlog]);
@@ -111,13 +319,20 @@ class IslemLogController extends Controller
     public function update(Request $request, $islemlog)
     {
         $this->authorizeLogAction();
-        $request->validate([
+        $newDurumId = (int) $request->input('servis_durum_id');
+        $yonlendirmeKurallari = $newDurumId === 9098
+            ? [
+                'teknisyen_id' => 'required|exists:personel,id',
+                'gidis_tarihi' => 'required|date_format:Y-m-d',
+            ]
+            : [];
+        $request->validate(array_merge([
             'personel_id' => 'nullable|exists:personel,id',
             'servis_durum_id' => 'required|exists:servis_durum,id',
             'aciklama' => 'nullable|string',
             'tarih' => 'required|date',
             'saat' => 'required|date_format:H:i',
-        ]);
+        ], $yonlendirmeKurallari));
 
         try {
             $log = Islemloglari::notDeleted()->findOrFail($islemlog);
@@ -131,10 +346,28 @@ class IslemLogController extends Controller
                 $payload['islemi_yapan_personel_id'] = $payload['personel_id'];
                 unset($payload['personel_id']);
             }
-            DB::transaction(function () use ($log, $payload, $oldDurumId) {
+            $teknisyenId = (int) $request->input('teknisyen_id');
+            $gidisTarihi = trim((string) $request->input('gidis_tarihi'));
+            if ($newDurumId === 9098) {
+                $payload['aciklama'] = $this->buildYonlendirmeLogAciklama($teknisyenId, $gidisTarihi);
+            } else {
+                $payload['aciklama'] = $this->plainTextFromBr((string) ($payload['aciklama'] ?? ''));
+                $payload['aciklama'] = $this->brFromPlainText($payload['aciklama']);
+            }
+            DB::transaction(function () use ($log, $payload, $oldDurumId, $newDurumId, $teknisyenId, $gidisTarihi) {
                 $log->update($payload);
                 if ($log->servis_id) {
                     $this->syncServisDurumFromUpdatedLog($log, $oldDurumId);
+                    if ($newDurumId === 9098 && $teknisyenId > 0 && $gidisTarihi !== '') {
+                        $this->upsertYonlendirmeCevaplari((int) $log->servis_id, $log, $teknisyenId, $gidisTarihi);
+                        if ($this->isLatestServisLog($log)) {
+                            $servis = Servis::find($log->servis_id);
+                            if ($servis) {
+                                $servis->tarih = $gidisTarihi;
+                                $servis->save();
+                            }
+                        }
+                    }
                     $this->syncServisPersonelFromLatestCevap((int) $log->servis_id);
                 }
             });
@@ -276,7 +509,7 @@ class IslemLogController extends Controller
                     Servis::where('id', $servisId)->update(['servis_durum_id' => $sonLog->servis_durum_id]);
                 }
                 if ((int) $log->servis_durum_id === 9098) {
-                    $this->clearTeknisyenYonlendirmeAnswers((int) $servisId);
+                    $this->clearTeknisyenYonlendirmeAnswers((int) $servisId, $log);
                 }
                 $this->syncServisPersonelFromLatestCevap((int) $servisId);
             }

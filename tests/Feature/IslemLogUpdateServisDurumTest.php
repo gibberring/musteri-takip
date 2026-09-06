@@ -98,6 +98,61 @@ class IslemLogUpdateServisDurumTest extends TestCase
         $this->assertSame(self::DURUM_FIYAT, (int) Servis::find($servis->id)->servis_durum_id);
     }
 
+    public function test_eski_9098_logu_silinince_yeni_13234_ve_personel_kalir(): void
+    {
+        $user = $this->makeOperator();
+        $servis = $this->makeServis(self::DURUM_YONLENDIRILDI);
+        $servis->personel_id = 4002;
+        $servis->save();
+
+        $eskiLog = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $eskiCevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $eski13234 = $this->makeCevap($eskiCevap0->id, self::SORU_TEKNISYEN, '4001');
+        $this->makeCevap($eskiCevap0->id, self::SORU_GIDIS, '2026-09-02');
+
+        $yeniLog = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $yeniCevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $yeni13234 = $this->makeCevap($yeniCevap0->id, self::SORU_TEKNISYEN, '4002');
+        $this->makeCevap($yeniCevap0->id, self::SORU_GIDIS, '2026-09-08');
+
+        Auth::login($user);
+        $response = app(IslemLogController::class)->destroy($eskiLog->id);
+
+        $this->assertTrue($response->getData(true)['success'] ?? false);
+        $this->assertSame(1, (int) Islemloglari::find($eskiLog->id)->silindi);
+        $this->assertSame(0, (int) Islemloglari::find($yeniLog->id)->silindi);
+        $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Servis::find($servis->id)->servis_durum_id);
+        $this->assertSame(4002, (int) Servis::find($servis->id)->personel_id);
+        $this->assertNull(ServisDurumCevap0::find($eskiCevap0->id));
+        $this->assertNull(ServisDurumCevap::find($eski13234->id));
+        $this->assertNotNull(ServisDurumCevap0::find($yeniCevap0->id));
+        $this->assertSame('4002', (string) ServisDurumCevap::find($yeni13234->id)->cevap);
+    }
+
+    public function test_eski_9098_logu_silinince_tek_kalan_yeni_cevap_silinmez(): void
+    {
+        $user = $this->makeOperator();
+        $servis = $this->makeServis(self::DURUM_YONLENDIRILDI);
+        $servis->personel_id = 4002;
+        $servis->save();
+
+        $eskiLog = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $yeniLog = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $yeniCevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $yeni13234 = $this->makeCevap($yeniCevap0->id, self::SORU_TEKNISYEN, '4002');
+
+        Auth::login($user);
+        $response = app(IslemLogController::class)->destroy($eskiLog->id);
+
+        $this->assertTrue($response->getData(true)['success'] ?? false);
+        $this->assertSame(1, (int) Islemloglari::find($eskiLog->id)->silindi);
+        $this->assertSame(0, (int) Islemloglari::find($yeniLog->id)->silindi);
+        $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Servis::find($servis->id)->servis_durum_id);
+        $this->assertSame(4002, (int) Servis::find($servis->id)->personel_id);
+        $this->assertNotNull(ServisDurumCevap0::find($yeniCevap0->id));
+        $this->assertSame('4002', (string) ServisDurumCevap::find($yeni13234->id)->cevap);
+    }
+
     public function test_son_log_9098den_cikinca_teknisyen_cevabi_baska_soruya_tasinmaz(): void
     {
         $user = $this->makeOperator();
@@ -117,15 +172,118 @@ class IslemLogUpdateServisDurumTest extends TestCase
         $this->assertSame(self::SORU_TEKNISYEN, (int) ServisDurumCevap::find($cevap->id)->soru_id);
     }
 
-    private function updateLog(Personel $user, int $logId, int $yeniDurum)
+    public function test_show_9098_teknisyen_ve_gidis_dondurur(): void
+    {
+        $user = $this->makeOperator();
+        $eski = $this->makeTeknisyen('Izmir Teknisyen Umit');
+        $servis = $this->makeServis(self::DURUM_YONLENDIRILDI);
+        $servis->personel_id = $eski->id;
+        $servis->tarih = '2026-09-05';
+        $servis->save();
+        $log = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $cevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $this->makeCevap($cevap0->id, self::SORU_TEKNISYEN, (string) $eski->id);
+        $this->makeCevap($cevap0->id, self::SORU_GIDIS, '2026-09-05');
+
+        Auth::login($user);
+        $data = app(IslemLogController::class)->show($log->id)->getData(true);
+
+        $this->assertSame($log->id, (int) $data['id']);
+        $this->assertSame($eski->id, (int) $data['teknisyen_id']);
+        $this->assertSame('2026-09-05', $data['gidis_tarihi']);
+        $teknisyenIds = collect($data['teknisyenler'] ?? [])->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $this->assertContains($eski->id, $teknisyenIds);
+    }
+
+    public function test_9098_log_duzenlenince_13234_personel_ve_aciklama_guncellenir(): void
+    {
+        $user = $this->makeOperator();
+        $eski = $this->makeTeknisyen('Izmir Teknisyen Umit');
+        $yeni = $this->makeTeknisyen('Yeni Teknisyen Ali');
+        $servis = $this->makeServis(self::DURUM_YONLENDIRILDI);
+        $servis->personel_id = $eski->id;
+        $servis->tarih = '2026-09-05';
+        $servis->save();
+        $sonLog = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $cevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $cevap13234 = $this->makeCevap($cevap0->id, self::SORU_TEKNISYEN, (string) $eski->id);
+        $cevap13235 = $this->makeCevap($cevap0->id, self::SORU_GIDIS, '2026-09-05');
+
+        $response = $this->updateLog($user, $sonLog->id, self::DURUM_YONLENDIRILDI, [
+            'teknisyen_id' => $yeni->id,
+            'gidis_tarihi' => '2026-09-08',
+            'aciklama' => '- Teknisyen: Izmir Teknisyen Umit<br>- Gidiş Tarihi: 2026-09-05',
+        ]);
+
+        $this->assertTrue($response->getData(true)['success'] ?? false, $response->getData(true)['message'] ?? '');
+        $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Servis::find($servis->id)->servis_durum_id);
+        $this->assertSame($yeni->id, (int) Servis::find($servis->id)->personel_id);
+        $this->assertSame('2026-09-08', (string) Servis::find($servis->id)->tarih);
+        $this->assertSame((string) $yeni->id, (string) ServisDurumCevap::find($cevap13234->id)->cevap);
+        $this->assertSame('2026-09-08', (string) ServisDurumCevap::find($cevap13235->id)->cevap);
+        $this->assertSame(
+            '- Teknisyen: Yeni Teknisyen Ali<br>- Gidis Tarihi: 2026-09-08',
+            (string) Islemloglari::find($sonLog->id)->aciklama
+        );
+    }
+
+    public function test_ara_9098_log_duzenlenince_servis_personel_degismez(): void
+    {
+        $user = $this->makeOperator();
+        $eski = $this->makeTeknisyen('Eski Teknisyen');
+        $guncel = $this->makeTeknisyen('Guncel Teknisyen');
+        $araTeknisyen = $this->makeTeknisyen('Ara Teknisyen');
+        $servis = $this->makeServis(self::DURUM_YONLENDIRILDI);
+        $servis->personel_id = $guncel->id;
+        $servis->tarih = '2026-09-08';
+        $servis->save();
+
+        $araLog = $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $araCevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $ara13234 = $this->makeCevap($araCevap0->id, self::SORU_TEKNISYEN, (string) $eski->id);
+        $this->makeCevap($araCevap0->id, self::SORU_GIDIS, '2026-09-02');
+
+        $this->makeLog($servis->id, self::DURUM_YONLENDIRILDI, $user->id);
+        $sonCevap0 = $this->makeCevap0($servis->id, self::DURUM_YONLENDIRILDI);
+        $this->makeCevap($sonCevap0->id, self::SORU_TEKNISYEN, (string) $guncel->id);
+        $this->makeCevap($sonCevap0->id, self::SORU_GIDIS, '2026-09-08');
+
+        $response = $this->updateLog($user, $araLog->id, self::DURUM_YONLENDIRILDI, [
+            'teknisyen_id' => $araTeknisyen->id,
+            'gidis_tarihi' => '2026-09-03',
+        ]);
+
+        $this->assertTrue($response->getData(true)['success'] ?? false);
+        $this->assertSame($guncel->id, (int) Servis::find($servis->id)->personel_id);
+        $this->assertSame('2026-09-08', (string) Servis::find($servis->id)->tarih);
+        $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Servis::find($servis->id)->servis_durum_id);
+        $this->assertSame((string) $araTeknisyen->id, (string) ServisDurumCevap::find($ara13234->id)->cevap);
+        $this->assertStringContainsString('Ara Teknisyen', (string) Islemloglari::find($araLog->id)->aciklama);
+    }
+
+    public function test_9098_olmayan_log_elle_aciklama_korunur(): void
+    {
+        $user = $this->makeOperator();
+        $servis = $this->makeServis(self::DURUM_IPTAL);
+        $sonLog = $this->makeLog($servis->id, self::DURUM_IPTAL, $user->id);
+
+        $response = $this->updateLog($user, $sonLog->id, self::DURUM_IPTAL, [
+            'aciklama' => "ilk satır<br>ikinci satır",
+        ]);
+
+        $this->assertTrue($response->getData(true)['success'] ?? false);
+        $this->assertSame("ilk satır<br>ikinci satır", (string) Islemloglari::find($sonLog->id)->aciklama);
+    }
+
+    private function updateLog(Personel $user, int $logId, int $yeniDurum, array $extra = [])
     {
         Auth::login($user);
-        $request = Request::create('/islemlog/' . $logId, 'PUT', [
+        $request = Request::create('/islemlog/' . $logId, 'PUT', array_merge([
             'servis_durum_id' => $yeniDurum,
             'tarih' => '2026-08-17',
             'saat' => '10:00',
             'aciklama' => 'duzenlendi',
-        ]);
+        ], $extra));
 
         return app(IslemLogController::class)->update($request, $logId);
     }
@@ -136,6 +294,19 @@ class IslemLogUpdateServisDurumTest extends TestCase
         $user->ad = 'Test Operator';
         $user->sifre = 'x';
         $user->poz_id = 1073;
+        $user->aktif = 1;
+        $user->mesai_basladimi = 1;
+        $user->save();
+
+        return $user;
+    }
+
+    private function makeTeknisyen(string $ad): Personel
+    {
+        $user = new Personel();
+        $user->ad = $ad;
+        $user->sifre = 'x';
+        $user->poz_id = 1077;
         $user->aktif = 1;
         $user->mesai_basladimi = 1;
         $user->save();
@@ -235,6 +406,7 @@ class IslemLogUpdateServisDurumTest extends TestCase
             $table->id();
             $table->unsignedBigInteger('servis_durum_id')->nullable();
             $table->unsignedBigInteger('personel_id')->nullable();
+            $table->string('tarih')->nullable();
             $table->timestamps();
         });
 

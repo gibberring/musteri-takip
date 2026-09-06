@@ -433,6 +433,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 shouldShow = false;
             }
 
+            // 9098 kendi hiyerarşisinde yok; mevcut durum 9098 iken yeniden yönlendirme için tekrar göster.
+            // Teknisyen / Harici Operatör aşağıda yine gizler.
+            if (Number(currentServiceStatusId) === 9098 && Number(status.id) === 9098) {
+                shouldShow = true;
+            }
+
             // Rol bazlı ek kısıtlar / force-show (Parça Gidecek restricted vb.)
             try {
                 // Teknisyen + Harici Operatör: hedef 9098 (Teknisyen Yönlendirildi) her zaman gizli

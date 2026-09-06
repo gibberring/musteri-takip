@@ -1519,6 +1519,63 @@
         });
     };
 
+    function brToPlainText(raw) {
+        if (raw == null || raw === '') return '';
+        return String(raw)
+            .replace(/&lt;br\s*\/?&gt;/gi, '\n')
+            .replace(/<br\s*\/?>/gi, '\n');
+    }
+
+    function plainTextToBr(raw) {
+        if (raw == null || raw === '') return '';
+        return String(raw).replace(/\r\n|\r|\n/g, '<br>');
+    }
+
+    function fillDuzenleIslemLogTeknisyenSelect(teknisyenler, selectedId) {
+        var $sel = $('#duzenleIslemLogTeknisyen');
+        $sel.empty().append($('<option>', { value: '', text: 'Seçiniz...' }));
+        var seen = {};
+        (teknisyenler || []).forEach(function(p) {
+            if (!p || p.id == null) return;
+            var id = String(p.id);
+            if (seen[id]) return;
+            seen[id] = true;
+            $sel.append($('<option>', { value: p.id, text: p.ad || ('#' + p.id) }));
+        });
+        if (selectedId && !seen[String(selectedId)]) {
+            $sel.append($('<option>', { value: selectedId, text: 'Teknisyen #' + selectedId }));
+        }
+        if (selectedId) {
+            $sel.val(String(selectedId));
+        }
+    }
+
+    function resolveDuzenleIslemLogTeknisyenler(response) {
+        if (response && Array.isArray(response.teknisyenler) && response.teknisyenler.length) {
+            return response.teknisyenler;
+        }
+        var fromCrm = [];
+        ((window.crmData && window.crmData.personeller) || []).forEach(function(p) {
+            if (p && String(p.poz_id) === '1077') {
+                fromCrm.push({ id: p.id, ad: p.ad });
+            }
+        });
+        return fromCrm;
+    }
+
+    function toggleDuzenleIslemLogYonlendirmeFields(durumId) {
+        var isYonlendirme = Number(durumId) === 9098;
+        var $yon = $('#duzenleIslemLogYonlendirmeAlanlari');
+        var $aciklama = $('#duzenleIslemLogAciklamaWrap');
+        if (isYonlendirme) {
+            $yon.removeClass('d-none');
+            $aciklama.addClass('d-none');
+        } else {
+            $yon.addClass('d-none');
+            $aciklama.removeClass('d-none');
+        }
+    }
+
     // === Global: İşlem logu düzenle/sil/kaydet (özet) ===
     window.duzenleIslemLog = function(logId){
         if (window._proposalServisDetayShowHandler) return;
@@ -1526,11 +1583,18 @@
         $.ajax({ url: '/islemlog/' + logId, type: 'GET' })
         .done(function(response){
             if (response && response.id) {
+                window._duzenleIslemLogLastResponse = response;
                 $('#duzenleIslemLogId').val(response.id);
                 $('#duzenleIslemLogTarih').val(response.tarih);
                 $('#duzenleIslemLogSaat').val(response.saat);
-                $('#duzenleIslemLogAciklama').val(response.aciklama);
+                $('#duzenleIslemLogAciklama').val(brToPlainText(response.aciklama));
                 $('#duzenleIslemLogDurum').val(response.servis_durum_id);
+                fillDuzenleIslemLogTeknisyenSelect(
+                    resolveDuzenleIslemLogTeknisyenler(response),
+                    response.teknisyen_id || ''
+                );
+                $('#duzenleIslemLogGidisTarihi').val(response.gidis_tarihi || '');
+                toggleDuzenleIslemLogYonlendirmeFields(response.servis_durum_id);
             } else {
                 Swal && Swal.fire('Hata!', 'Log detayları alınamadı.', 'error');
                 $('#duzenleIslemLogModal').modal('hide');
@@ -1622,15 +1686,46 @@
         }
     };
 
+    $(document).on('change', '#duzenleIslemLogDurum', function() {
+        if (window._proposalServisDetayShowHandler) return;
+        var durumId = $(this).val();
+        toggleDuzenleIslemLogYonlendirmeFields(durumId);
+        if (Number(durumId) === 9098) {
+            var last = window._duzenleIslemLogLastResponse || {};
+            if (!$('#duzenleIslemLogTeknisyen').val() && last.teknisyen_id) {
+                fillDuzenleIslemLogTeknisyenSelect(
+                    resolveDuzenleIslemLogTeknisyenler(last),
+                    last.teknisyen_id
+                );
+            }
+            if (!$('#duzenleIslemLogGidisTarihi').val() && last.gidis_tarihi) {
+                $('#duzenleIslemLogGidisTarihi').val(last.gidis_tarihi);
+            }
+        }
+    });
+
     window.kaydetIslemLog = function(){
         if (window._proposalServisDetayShowHandler) return;
         var logId = $('#duzenleIslemLogId').val();
+        var durumId = $('#duzenleIslemLogDurum').val();
         var formData = {
             tarih: $('#duzenleIslemLogTarih').val(),
             saat: $('#duzenleIslemLogSaat').val(),
-            aciklama: $('#duzenleIslemLogAciklama').val(),
-            servis_durum_id: $('#duzenleIslemLogDurum').val()
+            aciklama: plainTextToBr($('#duzenleIslemLogAciklama').val()),
+            servis_durum_id: durumId
         };
+        if (Number(durumId) === 9098) {
+            formData.teknisyen_id = $('#duzenleIslemLogTeknisyen').val();
+            formData.gidis_tarihi = $('#duzenleIslemLogGidisTarihi').val();
+            if (!formData.teknisyen_id) {
+                Swal && Swal.fire('Uyarı!', 'Lütfen teknisyen seçin.', 'warning');
+                return;
+            }
+            if (!formData.gidis_tarihi) {
+                Swal && Swal.fire('Uyarı!', 'Lütfen gidiş tarihi seçin.', 'warning');
+                return;
+            }
+        }
         var $kaydetButton = $('#duzenleIslemLogModal .modal-footer button.btn-primary');
         $kaydetButton.prop('disabled', true).html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Kaydediliyor...');
         $.ajax({ url: '/islemlog/' + logId, type: 'PUT', data: formData })

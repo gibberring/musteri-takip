@@ -27,7 +27,19 @@
                         @endif
                     </select>
                 </div>
-                <div class="mb-1">
+                <div id="duzenleIslemLogYonlendirmeAlanlari" class="d-none">
+                    <div class="mb-1">
+                        <label class="form-label small">Teknisyen</label>
+                        <select class="form-select form-select-sm" id="duzenleIslemLogTeknisyen">
+                            <option value="">Seçiniz...</option>
+                        </select>
+                    </div>
+                    <div class="mb-1">
+                        <label class="form-label small">Gidiş Tarihi</label>
+                        <input type="date" class="form-control form-control-sm" id="duzenleIslemLogGidisTarihi">
+                    </div>
+                </div>
+                <div class="mb-1" id="duzenleIslemLogAciklamaWrap">
                     <label class="form-label small">Açıklama</label>
                     <textarea class="form-control form-control-sm" id="duzenleIslemLogAciklama" rows="3"></textarea>
                 </div>

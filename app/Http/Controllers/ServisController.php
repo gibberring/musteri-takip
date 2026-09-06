@@ -1341,6 +1341,98 @@ class ServisController extends Controller
     }
 
     /**
+     * 9098 son teknisyen / gidiş cevabı.
+     */
+    private function latestYonlendirmeCevap(int $servisId, int $soruId): ?ServisDurumCevap
+    {
+        return ServisDurumCevap::where('soru_id', $soruId)
+            ->whereHas('durumCevap0', function ($q) use ($servisId) {
+                $q->where('servis_id', $servisId)
+                  ->where('servis_durum_id', 9098);
+            })
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    /**
+     * Bu servisteki tüm 9098 / 13234 cevaplarını yeni teknisyene hizala (eski satırlar silinmez).
+     */
+    private function overwriteYonlendirmeTeknisyenCevaplari(int $servisId, int $newTeknisyenId): void
+    {
+        if ($newTeknisyenId <= 0) {
+            return;
+        }
+        $cevap0Ids = ServisDurumCevap0::where('servis_id', $servisId)
+            ->where('servis_durum_id', 9098)
+            ->pluck('id');
+        if ($cevap0Ids->isEmpty()) {
+            return;
+        }
+        ServisDurumCevap::whereIn('durumCevap0_id', $cevap0Ids)
+            ->where('soru_id', 13234)
+            ->update(['cevap' => (string) $newTeknisyenId]);
+    }
+
+    /**
+     * 9098→9098 aynı teknisyen + aynı tarih: kopya log yok.
+     * Eksik teknisyen/tarih: 422.
+     *
+     * @param  array<string, mixed>|null  $dinamikVeriler
+     * @return \Illuminate\Http\JsonResponse|null
+     */
+    private function resolveTeknisyenYenidenAtamaNoop(Servis $servis, $dinamikVeriler)
+    {
+        $dinamikVeriler = is_array($dinamikVeriler) ? $dinamikVeriler : [];
+        $newTeknisyenId = (int) ($dinamikVeriler['dinamik_soru[13234]'] ?? 0);
+        $newGidisTarihi = trim((string) ($dinamikVeriler['dinamik_soru[13235]'] ?? ''));
+
+        if ($newTeknisyenId <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Yeniden yönlendirme için teknisyen seçin.',
+            ], 422);
+        }
+        if ($newGidisTarihi === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $newGidisTarihi)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Yeniden yönlendirme için gidiş tarihi seçin.',
+            ], 422);
+        }
+
+        $latestTeknisyen = $this->latestYonlendirmeCevap((int) $servis->id, 13234);
+        $currentTeknisyenId = ($latestTeknisyen && $latestTeknisyen->cevap)
+            ? (int) $latestTeknisyen->cevap
+            : (int) ($servis->personel_id ?? 0);
+
+        $latestGidis = $this->latestYonlendirmeCevap((int) $servis->id, 13235);
+        $currentGidisTarihi = ($latestGidis && $latestGidis->cevap)
+            ? (string) $latestGidis->cevap
+            : (string) ($servis->tarih ?? '');
+
+        if ($newTeknisyenId === $currentTeknisyenId && $newGidisTarihi === $currentGidisTarihi) {
+            $freshServis = $servis->fresh([
+                'servisDurum',
+                'personel',
+                'musteri',
+                'islemloglari' => function ($query) {
+                    $query->with(['personel:id,ad', 'servisDurum:id,ad'])->orderBy('id', 'desc');
+                },
+            ]);
+            $freshData = $freshServis ? $freshServis->toArray() : $servis->toArray();
+            $this->enrichIslemLoglari($freshData);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Teknisyen ve gidiş tarihi değişmedi.',
+                'noop' => true,
+                'servis' => $freshData,
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
      * Belirli bir servisin durumunu ve ilişkili detaylarını günceller.
      */
     public function updateDurumDetayli(Request $request, Servis $servis)
@@ -1366,9 +1458,12 @@ class ServisController extends Controller
             // Mevcut durumu al
             $mevcutDurum = $servis->servis_durum_id;
             $yeniDurum = $request->servis_durum_id;
+            $teknisyenYonlendirildiDurumId = 9098;
+            $isTeknisyenYenidenAtama = (int) $mevcutDurum === $teknisyenYonlendirildiDurumId
+                && (int) $yeniDurum === $teknisyenYonlendirildiDurumId;
 
-            // Durum değişikliği yapılıyor mu kontrol et
-            if ($mevcutDurum == $yeniDurum) {
+            // Durum değişikliği yapılıyor mu kontrol et (9098→9098 yeniden atama hariç)
+            if ($mevcutDurum == $yeniDurum && !$isTeknisyenYenidenAtama) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Durum değişikliği yapılmadı.'
@@ -1397,7 +1492,6 @@ class ServisController extends Controller
             $sonlandirmaVeTamamlamaHedefDurumIds = [9099, 9114]; // Servisi Sonlandırıldı, Teslimata Hazır (Tamamlandı)
             $teknisyenPozisyonId = 1077;
             $hariciOperatorPozisyonId = 1076;
-            $teknisyenYonlendirildiDurumId = 9098;
             $user = Auth::user();
 
             // Teknisyen / Harici Operatör başka teknisyene yönlendiremez (9098)
@@ -1410,6 +1504,13 @@ class ServisController extends Controller
                     'success' => false,
                     'message' => 'Bu duruma geçiş yetkiniz yok.',
                 ], 403);
+            }
+
+            if ($isTeknisyenYenidenAtama) {
+                $yenidenAtamaNoop = $this->resolveTeknisyenYenidenAtamaNoop($servis, $request->dinamik_veriler);
+                if ($yenidenAtamaNoop !== null) {
+                    return $yenidenAtamaNoop;
+                }
             }
 
             $hedefteOdemeZorunlu = in_array((int) $yeniDurum, $teknisyenOdemeZorunluHedefDurumIds, true)
@@ -1428,7 +1529,7 @@ class ServisController extends Controller
             }
 
             // Transaction başlat
-            return DB::transaction(function () use ($servis, $yeniDurum, $mevcutDurum, $request, $teknisyenYonlendirildiDurumId) {
+            return DB::transaction(function () use ($servis, $yeniDurum, $mevcutDurum, $request, $teknisyenYonlendirildiDurumId, $isTeknisyenYenidenAtama) {
                 // Durumu güncelle
                 $servis->servis_durum_id = $yeniDurum;
                 $servis->save();
@@ -1536,6 +1637,10 @@ class ServisController extends Controller
                     if (!empty($dinamikVeriler[$gidisKey]) && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $dinamikVeriler[$gidisKey])) {
                         $servis->tarih = (string) $dinamikVeriler[$gidisKey];
                         $servis->save();
+                    }
+                    // 9098→9098: eski 13234 cevaplarını da yeni teknisyene çek (liste MAX(13234) + tüm cevaplar)
+                    if ($isTeknisyenYenidenAtama && !empty($dinamikVeriler[$teknisyenKey])) {
+                        $this->overwriteYonlendirmeTeknisyenCevaplari((int) $servis->id, (int) $dinamikVeriler[$teknisyenKey]);
                     }
                 }
 
