@@ -5,7 +5,7 @@
             overflow-wrap: anywhere;
         }
     </style>
-    <div class="modal fade" id="servisDetayModal" tabindex="-1" aria-labelledby="servisDetayModalLabel" aria-hidden="true">
+    <div class="modal fade notranslate" id="servisDetayModal" tabindex="-1" aria-labelledby="servisDetayModalLabel" aria-hidden="true" translate="no">
         {{-- <div class="modal-dialog modal-lg modal-dialog-centered"> --}}
         <div class="modal-dialog modal-lg modal-dialog-centered"> {{-- modal-xl'den modal-lg'ye değiştirildi --}}
             <div class="modal-content">

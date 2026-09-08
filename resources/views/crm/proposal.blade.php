@@ -1005,7 +1005,7 @@
                             </div>
                         </div>
                         @endif
-                        <div class="table-responsive">
+                        <div class="table-responsive notranslate" translate="no">
                             <table class="table table-hover" id="servisListTable">
                                 <thead>
                                     <tr>

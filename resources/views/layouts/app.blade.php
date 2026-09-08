@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="tr" translate="no" class="notranslate">
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="x-ua-compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="google" content="notranslate" />
     <meta name="description" content="@yield('page_description', 'CRM Uygulaması')" />
     <meta name="keyword" content="@yield('page_keyword', 'crm, musteri, takip')" />
     <meta name="author" content="WRAPCODERS" />
@@ -262,7 +263,7 @@
         <script src="https:oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 </head>
-<body class="@yield('body_class', '')">
+<body class="notranslate @yield('body_class', '')" translate="no">
     <!--! ================================================================ !-->
     <!--! COMMON Navigation Manu START !-->
     <!--! ================================================================ !-->
