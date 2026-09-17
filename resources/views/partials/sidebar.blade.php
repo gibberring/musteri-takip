@@ -86,12 +86,10 @@
                             $silinenKasaBugunCount = \App\Models\Kasa::onlyDeleted()
                                 ->whereDate('silinme_tarihi', $bugun)
                                 ->count();
+                            // Müşteri ad/tel güncellemeleri silinen kayıt değil (güncelleme logu), sayıma katılmaz.
                             $silinenDigerBugunCount = \App\Models\Islemloglari::onlyDeleted()
-                                    ->whereDate('silinme_tarihi', $bugun)
-                                    ->count()
-                                + \App\Models\SettingsAuditLog::where('action', \App\Models\SettingsAuditLog::ACTION_MUSTERI_CONTACT_UPDATED)
-                                    ->whereDate('created_at', $bugun)
-                                    ->count();
+                                ->whereDate('silinme_tarihi', $bugun)
+                                ->count();
                             $silinenKayitlarToplamCount = $silinenServisBugunCount + $silinenKasaBugunCount + $silinenDigerBugunCount;
                         } catch (\Throwable $e) {
                             $silinenServisBugunCount = null;
