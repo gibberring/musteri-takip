@@ -72,6 +72,34 @@
                             $bugunkuUlasilamadiCount = null;
                         }
                     }
+                    // Silinen Kayıtlar: bugün silinen kayıt sayıları (sadece Patron görüyor)
+                    $silinenServisBugunCount = null;
+                    $silinenKasaBugunCount = null;
+                    $silinenDigerBugunCount = null;
+                    $silinenKayitlarToplamCount = null;
+                    if ($loggedInUser && (int) $loggedInUser->poz_id === $patronPozisyonId) {
+                        try {
+                            $bugun = \Carbon\Carbon::today();
+                            $silinenServisBugunCount = \App\Models\Servis::where('silindi', 1)
+                                ->whereDate('silinme_tarihi', $bugun)
+                                ->count();
+                            $silinenKasaBugunCount = \App\Models\Kasa::onlyDeleted()
+                                ->whereDate('silinme_tarihi', $bugun)
+                                ->count();
+                            $silinenDigerBugunCount = \App\Models\Islemloglari::onlyDeleted()
+                                    ->whereDate('silinme_tarihi', $bugun)
+                                    ->count()
+                                + \App\Models\SettingsAuditLog::where('action', \App\Models\SettingsAuditLog::ACTION_MUSTERI_CONTACT_UPDATED)
+                                    ->whereDate('created_at', $bugun)
+                                    ->count();
+                            $silinenKayitlarToplamCount = $silinenServisBugunCount + $silinenKasaBugunCount + $silinenDigerBugunCount;
+                        } catch (\Throwable $e) {
+                            $silinenServisBugunCount = null;
+                            $silinenKasaBugunCount = null;
+                            $silinenDigerBugunCount = null;
+                            $silinenKayitlarToplamCount = null;
+                        }
+                    }
                 @endphp
                 <li class="nxl-item nxl-caption">
                     <label>MENÜ</label>
@@ -203,18 +231,44 @@
                 <li class="nxl-item nxl-hasmenu {{ $silinenKayitlarAktif ? 'active nxl-trigger' : '' }}">
                     <a href="javascript:void(0);" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-trash-2"></i></span>
-                        <span class="nxl-mtext">SİLİNEN KAYITLAR</span>
+                        <span class="nxl-mtext">
+                            <span class="nxl-mtext-label">SİLİNEN KAYITLAR</span>
+                            @if(!empty($silinenKayitlarToplamCount))
+                                <span class="badge bg-danger">{{ $silinenKayitlarToplamCount }}</span>
+                            @endif
+                        </span>
                         <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
                     </a>
                     <ul class="nxl-submenu">
                         <li class="nxl-item {{ request()->is('ayarlar/silinen-kayitlar/servis*') ? 'active' : '' }}">
-                            <a class="nxl-link" href="{{ route('settings.deletedRecords.servis') }}">Servis</a>
+                            <a class="nxl-link" href="{{ route('settings.deletedRecords.servis') }}">
+                                <span class="nxl-mtext">
+                                    <span class="nxl-mtext-label">Servis</span>
+                                    @if(!empty($silinenServisBugunCount))
+                                        <span class="badge bg-danger">{{ $silinenServisBugunCount }}</span>
+                                    @endif
+                                </span>
+                            </a>
                         </li>
                         <li class="nxl-item {{ request()->is('ayarlar/silinen-kayitlar/kasa*') ? 'active' : '' }}">
-                            <a class="nxl-link" href="{{ route('settings.deletedRecords.kasa') }}">Kasa</a>
+                            <a class="nxl-link" href="{{ route('settings.deletedRecords.kasa') }}">
+                                <span class="nxl-mtext">
+                                    <span class="nxl-mtext-label">Kasa</span>
+                                    @if(!empty($silinenKasaBugunCount))
+                                        <span class="badge bg-danger">{{ $silinenKasaBugunCount }}</span>
+                                    @endif
+                                </span>
+                            </a>
                         </li>
                         <li class="nxl-item {{ request()->is('ayarlar/silinen-kayitlar/diger*') ? 'active' : '' }}">
-                            <a class="nxl-link" href="{{ route('settings.deletedRecords.diger') }}">Diğer</a>
+                            <a class="nxl-link" href="{{ route('settings.deletedRecords.diger') }}">
+                                <span class="nxl-mtext">
+                                    <span class="nxl-mtext-label">Diğer</span>
+                                    @if(!empty($silinenDigerBugunCount))
+                                        <span class="badge bg-danger">{{ $silinenDigerBugunCount }}</span>
+                                    @endif
+                                </span>
+                            </a>
                         </li>
                     </ul>
                 </li>
