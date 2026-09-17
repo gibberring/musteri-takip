@@ -53,15 +53,12 @@ class ServisController extends Controller
     }
     /**
      * Servis kaydının gidiş tarihini (ve [tarihSor] formatlı benzer tarih sorularını) sınırlar:
-     * Patron dışındaki roller, servis kaydının oluşturulma tarihinden geriye tarih seçemez ve
-     * oluşturulma tarihinden en fazla 10 gün ileri tarih seçebilir. Uygunsa null, değilse hata mesajı döner.
+     * Kimse (Patron dahil) servis kaydının oluşturulma tarihinden geriye tarih seçemez.
+     * Patron dışındaki roller ayrıca oluşturulma tarihinden en fazla 10 gün ileri tarih seçebilir.
+     * Uygunsa null, değilse hata mesajı döner.
      */
     private function gidisTarihiSinirHatasi(string $value, Servis $servis, ?Personel $user): ?string
     {
-        $patronPozisyonId = 1071;
-        if ($user && (int) $user->poz_id === $patronPozisyonId) {
-            return null;
-        }
         try {
             $yeniTarih = Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
         } catch (\Exception $e) {
@@ -69,8 +66,14 @@ class ServisController extends Controller
         }
         $kayitTarihi = $servis->created_at ? $servis->created_at->copy()->startOfDay() : Carbon::today();
         if ($yeniTarih->lt($kayitTarihi)) {
-            return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden geriye alınamaz. Bu işlem için Patron yetkisi gerekir.';
+            return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden geriye alınamaz.';
         }
+
+        $patronPozisyonId = 1071;
+        if ($user && (int) $user->poz_id === $patronPozisyonId) {
+            return null;
+        }
+
         if ($yeniTarih->gt($kayitTarihi->copy()->addDays(10))) {
             return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden en fazla 10 gün ileri alınabilir.';
         }
