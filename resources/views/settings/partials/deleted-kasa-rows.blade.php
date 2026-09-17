@@ -2,7 +2,13 @@
     <tr data-row-id="kasa-{{ $kasa->id }}">
         <td>#{{ $kasa->id }}</td>
         <td>{{ $kasa->silinme_tarihi ?? '-' }}</td>
-        <td>{{ $kasa->servis?->id ? '#'.$kasa->servis->id : '-' }}</td>
+        <td>
+            @if($kasa->servis?->id)
+                <a href="{{ route('servisler.index', ['open_servis_id' => $kasa->servis->id]) }}" target="_blank" rel="noopener noreferrer">#{{ $kasa->servis->id }}</a>
+            @else
+                -
+            @endif
+        </td>
         <td>{{ $kasa->ilgiliPersonel?->ad ?? $kasa->personel?->ad ?? '-' }}</td>
         <td>{{ $kasa->odemeTuru?->ad ?? '-' }}</td>
         <td>{{ number_format((float) $kasa->tutar, 2, ',', '.') }} TL</td>

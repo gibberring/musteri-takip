@@ -2,7 +2,13 @@
     <tr data-row-id="log-{{ $log->id }}">
         <td>#{{ $log->id }}</td>
         <td>{{ $log->silinme_tarihi ?? '-' }}</td>
-        <td>{{ $log->servis?->id ? '#'.$log->servis->id : '-' }}</td>
+        <td>
+            @if($log->servis?->id)
+                <a href="{{ route('servisler.index', ['open_servis_id' => $log->servis->id]) }}" target="_blank" rel="noopener noreferrer">#{{ $log->servis->id }}</a>
+            @else
+                -
+            @endif
+        </td>
         <td>{{ $log->servisDurum?->ad ?? '-' }}</td>
         <td class="text-truncate" style="max-width: 360px;">{{ $log->aciklama ?? '-' }}</td>
         <td>{{ $log->silenKisi?->ad ?? '-' }}</td>
