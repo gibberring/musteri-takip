@@ -9,6 +9,7 @@ use App\Models\Personel;
 use App\Models\Servis;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
+use Carbon\Carbon;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -46,13 +47,14 @@ class ServisDurum9098YenidenAtamaTest extends TestCase
         $eski13234 = $this->makeCevap($eskiCevap0->id, self::SORU_TEKNISYEN, (string) $eskiTeknisyen->id);
         $this->makeCevap($eskiCevap0->id, self::SORU_GIDIS, '2026-09-02');
 
-        $response = $this->guncelleDurum($operator, $servis, $yeniTeknisyen->id, '2026-09-08');
+        $yeniGidisTarihi = Carbon::today()->addDays(3)->format('Y-m-d');
+        $response = $this->guncelleDurum($operator, $servis, $yeniTeknisyen->id, $yeniGidisTarihi);
         $payload = $response->getData(true);
 
         $this->assertTrue($payload['success'] ?? false, $payload['message'] ?? '');
         $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Servis::find($servis->id)->servis_durum_id);
         $this->assertSame($yeniTeknisyen->id, (int) Servis::find($servis->id)->personel_id);
-        $this->assertSame('2026-09-08', (string) Servis::find($servis->id)->tarih);
+        $this->assertSame($yeniGidisTarihi, (string) Servis::find($servis->id)->tarih);
 
         $this->assertSame(0, (int) Islemloglari::find($eskiLog->id)->silindi);
         $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Islemloglari::find($eskiLog->id)->servis_durum_id);
@@ -146,7 +148,7 @@ class ServisDurum9098YenidenAtamaTest extends TestCase
         $this->makeCevap($eskiCevap0->id, self::SORU_TEKNISYEN, (string) $eskiTeknisyen->id);
         $this->makeCevap($eskiCevap0->id, self::SORU_GIDIS, '2026-09-02');
 
-        $guncelle = $this->guncelleDurum($operator, $servis, $yeniTeknisyen->id, '2026-09-08');
+        $guncelle = $this->guncelleDurum($operator, $servis, $yeniTeknisyen->id, Carbon::today()->addDays(3)->format('Y-m-d'));
         $this->assertTrue($guncelle->getData(true)['success'] ?? false);
 
         Auth::login($operator);

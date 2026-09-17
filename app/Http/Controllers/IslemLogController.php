@@ -9,6 +9,7 @@ use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
 use App\Models\ServisDurumSoru;
 use App\Services\TeknisyenYonlendirmeBildirimService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,32 @@ use Illuminate\Support\Facades\Log;
 
 class IslemLogController extends Controller
 {
+    /**
+     * Servis kaydının gidiş tarihini sınırlar: Patron dışındaki roller, servis kaydının
+     * oluşturulma tarihinden geriye tarih seçemez ve oluşturulma tarihinden en fazla 10 gün
+     * ileri tarih seçebilir. Uygunsa null, değilse hata mesajı döner.
+     */
+    private function gidisTarihiSinirHatasi(string $value, Servis $servis, ?Personel $user): ?string
+    {
+        $patronPozisyonId = 1071;
+        if ($user && (int) $user->poz_id === $patronPozisyonId) {
+            return null;
+        }
+        try {
+            $yeniTarih = Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Exception $e) {
+            return null; // Format hatası zaten date_format kuralı tarafından yakalanır.
+        }
+        $kayitTarihi = $servis->created_at ? $servis->created_at->copy()->startOfDay() : Carbon::today();
+        if ($yeniTarih->lt($kayitTarihi)) {
+            return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden geriye alınamaz. Bu işlem için Patron yetkisi gerekir.';
+        }
+        if ($yeniTarih->gt($kayitTarihi->copy()->addDays(10))) {
+            return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden en fazla 10 gün ileri alınabilir.';
+        }
+        return null;
+    }
+
     private function authorizeLogAction()
     {
         $user = Auth::user();
@@ -336,6 +363,17 @@ class IslemLogController extends Controller
 
         try {
             $log = Islemloglari::notDeleted()->findOrFail($islemlog);
+
+            if ($newDurumId === 9098 && $log->servis_id) {
+                $gidisTarihiKontrol = trim((string) $request->input('gidis_tarihi'));
+                $servisKontrol = Servis::find($log->servis_id);
+                if ($gidisTarihiKontrol !== '' && $servisKontrol) {
+                    if ($hata = $this->gidisTarihiSinirHatasi($gidisTarihiKontrol, $servisKontrol, Auth::user())) {
+                        return response()->json(['success' => false, 'message' => $hata], 422);
+                    }
+                }
+            }
+
             $oldDurumId = (int) ($log->servis_durum_id ?? 0);
             $payload = $request->only(['personel_id','servis_durum_id','aciklama','tarih','saat']);
             if (empty($payload['personel_id'])) {

@@ -51,6 +51,57 @@ class ServisController extends Controller
         }
         return $data;
     }
+    /**
+     * Servis kaydının gidiş tarihini (ve [tarihSor] formatlı benzer tarih sorularını) sınırlar:
+     * Patron dışındaki roller, servis kaydının oluşturulma tarihinden geriye tarih seçemez ve
+     * oluşturulma tarihinden en fazla 10 gün ileri tarih seçebilir. Uygunsa null, değilse hata mesajı döner.
+     */
+    private function gidisTarihiSinirHatasi(string $value, Servis $servis, ?Personel $user): ?string
+    {
+        $patronPozisyonId = 1071;
+        if ($user && (int) $user->poz_id === $patronPozisyonId) {
+            return null;
+        }
+        try {
+            $yeniTarih = Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Exception $e) {
+            return null; // Format hatası zaten date_format kuralı tarafından yakalanır.
+        }
+        $kayitTarihi = $servis->created_at ? $servis->created_at->copy()->startOfDay() : Carbon::today();
+        if ($yeniTarih->lt($kayitTarihi)) {
+            return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden geriye alınamaz. Bu işlem için Patron yetkisi gerekir.';
+        }
+        if ($yeniTarih->gt($kayitTarihi->copy()->addDays(10))) {
+            return 'Gidiş tarihi, servis kaydının oluşturulma tarihinden en fazla 10 gün ileri alınabilir.';
+        }
+        return null;
+    }
+
+    /**
+     * Patron dışındaki roller kasa tarihlerini bugünden en fazla 30 gün ileri/geri seçebilir.
+     * Uygunsa null, değilse hata mesajı döner.
+     */
+    private function kasaTarihAraligiHatasi(?string $value, ?Personel $user): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+        $patronPozisyonId = 1071;
+        if ($user && (int) $user->poz_id === $patronPozisyonId) {
+            return null;
+        }
+        try {
+            $tarih = Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Exception $e) {
+            return null; // Format hatası zaten date_format kuralı tarafından yakalanır.
+        }
+        $today = Carbon::today();
+        if ($tarih->lt($today->copy()->subDays(30)) || $tarih->gt($today->copy()->addDays(30))) {
+            return 'Tarih, bugünden en fazla 30 gün ileri veya geri olabilir.';
+        }
+        return null;
+    }
+
     private function ensureServisAccess(Servis $servis)
     {
         $user = Auth::user();
@@ -1528,6 +1579,24 @@ class ServisController extends Controller
                 }
             }
 
+            // [tarihSor] formatlı sorulara verilen cevaplar (gidiş tarihi, gidilecek tarih vb.) servisler.tarih'i
+            // güncelliyor; bu yüzden kaydetmeden önce 10 günlük ileri / Patron dışı geri tarih sınırını kontrol et.
+            $dinamikVerilerOnKontrol = $request->input('dinamik_veriler') ?: [];
+            foreach ($dinamikVerilerOnKontrol as $onKontrolKey => $onKontrolValue) {
+                preg_match('/dinamik_soru\[(\d+)/', (string) $onKontrolKey, $onKontrolMatches);
+                $onKontrolSoruId = $onKontrolMatches[1] ?? null;
+                if (!$onKontrolSoruId || !is_string($onKontrolValue) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $onKontrolValue)) {
+                    continue;
+                }
+                $onKontrolSoru = ServisDurumSoru::find($onKontrolSoruId);
+                if (!$onKontrolSoru || $onKontrolSoru->cevap_format !== '[tarihSor]') {
+                    continue;
+                }
+                if ($hata = $this->gidisTarihiSinirHatasi($onKontrolValue, $servis, $user)) {
+                    return response()->json(['success' => false, 'message' => $hata], 422);
+                }
+            }
+
             // Transaction başlat
             return DB::transaction(function () use ($servis, $yeniDurum, $mevcutDurum, $request, $teknisyenYonlendirildiDurumId, $isTeknisyenYenidenAtama) {
                 // Durumu güncelle
@@ -2144,6 +2213,8 @@ class ServisController extends Controller
         if ($resp = $this->ensureServisAccess($servis)) {
             return $resp;
         }
+        $loggedInUser = Auth::user();
+
         $validator = Validator::make($request->all(), [
             'odeme_sekli_id' => 'required|exists:kasa_odeme_sekli,id',
             'gerceklesme' => 'required|in:0,1', // 0: Beklemede, 1: Tamamlandı
@@ -2151,7 +2222,15 @@ class ServisController extends Controller
             // Ödeme türü (gelir/gider) varsayılan olarak müşteri ödemesi olduğu için "gelir" kabul edilecek.
             // Bu, kasa_odeme_turu tablosundaki bir ID'ye karşılık gelmeli.
             'odeme_turu_id' => 'required|integer|exists:kasa_odeme_turu,id',
-            'tarih' => 'nullable|date_format:Y-m-d',
+            'tarih' => [
+                'nullable',
+                'date_format:Y-m-d',
+                function ($attribute, $value, $fail) use ($loggedInUser) {
+                    if ($msg = $this->kasaTarihAraligiHatasi($value, $loggedInUser)) {
+                        $fail($msg);
+                    }
+                },
+            ],
             'saat' => 'nullable|date_format:H:i',
         ]);
 

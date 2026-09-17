@@ -27,6 +27,31 @@ class KasaController extends Controller
         }
         return $data;
     }
+
+    /**
+     * Patron dışındaki roller kasa tarihlerini bugünden en fazla 30 gün ileri/geri seçebilir.
+     * Uygunsa null, değilse hata mesajı döner.
+     */
+    private function kasaTarihAraligiHatasi(?string $value, ?Personel $user): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+        $patronPozisyonId = 1071;
+        if ($user && (int) $user->poz_id === $patronPozisyonId) {
+            return null;
+        }
+        try {
+            $tarih = Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Exception $e) {
+            return null; // Format hatası zaten date_format kuralı tarafından yakalanır.
+        }
+        $today = Carbon::today();
+        if ($tarih->lt($today->copy()->subDays(30)) || $tarih->gt($today->copy()->addDays(30))) {
+            return 'Tarih, bugünden en fazla 30 gün ileri veya geri olabilir.';
+        }
+        return null;
+    }
     /**
      * Display a listing of the resource.
      */
@@ -1460,9 +1485,25 @@ class KasaController extends Controller
             'odeme_turu_id' => 'required|exists:kasa_odeme_turu,id',
             'odeme_sekli_id' => 'required|exists:kasa_odeme_sekli,id',
             'gerceklesme' => 'required|boolean',
-            'tarih' => 'required|date_format:Y-m-d',
+            'tarih' => [
+                'required',
+                'date_format:Y-m-d',
+                function ($attribute, $value, $fail) use ($loggedInUser) {
+                    if ($msg = $this->kasaTarihAraligiHatasi($value, $loggedInUser)) {
+                        $fail($msg);
+                    }
+                },
+            ],
             'saat' => 'required|date_format:H:i',
-            'islem_tarihi' => 'nullable|date_format:Y-m-d',
+            'islem_tarihi' => [
+                'nullable',
+                'date_format:Y-m-d',
+                function ($attribute, $value, $fail) use ($loggedInUser) {
+                    if ($msg = $this->kasaTarihAraligiHatasi($value, $loggedInUser)) {
+                        $fail($msg);
+                    }
+                },
+            ],
             'tutar' => 'required|numeric|min:0',
             'aciklama' => 'nullable|string|max:1000',
             'odeme_yonu' => [
@@ -1667,9 +1708,25 @@ class KasaController extends Controller
             'odeme_turu_id' => 'required|exists:kasa_odeme_turu,id',
             'odeme_sekli_id' => 'required|exists:kasa_odeme_sekli,id',
             'gerceklesme' => 'required|boolean',
-            'tarih' => 'required|date_format:Y-m-d',
+            'tarih' => [
+                'required',
+                'date_format:Y-m-d',
+                function ($attribute, $value, $fail) use ($loggedInUser) {
+                    if ($msg = $this->kasaTarihAraligiHatasi($value, $loggedInUser)) {
+                        $fail($msg);
+                    }
+                },
+            ],
             'saat' => 'required|date_format:H:i',
-            'islem_tarihi' => 'nullable|date_format:Y-m-d',
+            'islem_tarihi' => [
+                'nullable',
+                'date_format:Y-m-d',
+                function ($attribute, $value, $fail) use ($loggedInUser) {
+                    if ($msg = $this->kasaTarihAraligiHatasi($value, $loggedInUser)) {
+                        $fail($msg);
+                    }
+                },
+            ],
             'tutar' => 'required|numeric|min:0',
             'servis_id' => 'nullable|exists:servisler,id',
             'aciklama' => 'nullable|string|max:1000',

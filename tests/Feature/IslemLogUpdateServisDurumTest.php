@@ -8,6 +8,7 @@ use App\Models\Personel;
 use App\Models\Servis;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -209,20 +210,21 @@ class IslemLogUpdateServisDurumTest extends TestCase
         $cevap13234 = $this->makeCevap($cevap0->id, self::SORU_TEKNISYEN, (string) $eski->id);
         $cevap13235 = $this->makeCevap($cevap0->id, self::SORU_GIDIS, '2026-09-05');
 
+        $yeniGidisTarihi = Carbon::today()->addDays(3)->format('Y-m-d');
         $response = $this->updateLog($user, $sonLog->id, self::DURUM_YONLENDIRILDI, [
             'teknisyen_id' => $yeni->id,
-            'gidis_tarihi' => '2026-09-08',
+            'gidis_tarihi' => $yeniGidisTarihi,
             'aciklama' => '- Teknisyen: Izmir Teknisyen Umit<br>- Gidiş Tarihi: 2026-09-05',
         ]);
 
         $this->assertTrue($response->getData(true)['success'] ?? false, $response->getData(true)['message'] ?? '');
         $this->assertSame(self::DURUM_YONLENDIRILDI, (int) Servis::find($servis->id)->servis_durum_id);
         $this->assertSame($yeni->id, (int) Servis::find($servis->id)->personel_id);
-        $this->assertSame('2026-09-08', (string) Servis::find($servis->id)->tarih);
+        $this->assertSame($yeniGidisTarihi, (string) Servis::find($servis->id)->tarih);
         $this->assertSame((string) $yeni->id, (string) ServisDurumCevap::find($cevap13234->id)->cevap);
-        $this->assertSame('2026-09-08', (string) ServisDurumCevap::find($cevap13235->id)->cevap);
+        $this->assertSame($yeniGidisTarihi, (string) ServisDurumCevap::find($cevap13235->id)->cevap);
         $this->assertSame(
-            '- Teknisyen: Yeni Teknisyen Ali<br>- Gidis Tarihi: 2026-09-08',
+            '- Teknisyen: Yeni Teknisyen Ali<br>- Gidis Tarihi: ' . $yeniGidisTarihi,
             (string) Islemloglari::find($sonLog->id)->aciklama
         );
     }
@@ -250,7 +252,7 @@ class IslemLogUpdateServisDurumTest extends TestCase
 
         $response = $this->updateLog($user, $araLog->id, self::DURUM_YONLENDIRILDI, [
             'teknisyen_id' => $araTeknisyen->id,
-            'gidis_tarihi' => '2026-09-03',
+            'gidis_tarihi' => Carbon::today()->addDay()->format('Y-m-d'),
         ]);
 
         $this->assertTrue($response->getData(true)['success'] ?? false);
