@@ -32,32 +32,51 @@ class DeletedRecordsController extends Controller
         }
     }
 
-    public function index()
+    // Tüm silinen kayıtları limitsiz çekmek (özellikle işlem logları) 128MB PHP
+    // belleğini aşıp 500 veriyordu; her sekmede aynı üst sınır kullanılıyor.
+    private const LIST_LIMIT = 500;
+
+    private function dateRangeFromRequest(Request $request): array
+    {
+        return [
+            trim((string) $request->input('tarih1', '')) ?: null,
+            trim((string) $request->input('tarih2', '')) ?: null,
+        ];
+    }
+
+    public function servisPage(Request $request)
     {
         $this->authorizePatron();
 
-        // Tüm silinen kayıtları limitsiz çekmek (özellikle işlem logları) 128MB PHP
-        // belleğini aşıp 500 veriyordu; audit sekmesiyle aynı üst sınır.
-        $listLimit = 500;
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $silinenServisler = $this->deletedServisQuery(null, self::LIST_LIMIT, $tarih1, $tarih2)->get();
 
-        $silinenServisler = $this->deletedServisQuery(null, $listLimit)->get();
+        return view('settings.deleted-records-servis', compact('silinenServisler', 'tarih1', 'tarih2'));
+    }
 
-        $silinenKasa = $this->deletedKasaQuery(null, $listLimit)->get();
+    public function kasaPage(Request $request)
+    {
+        $this->authorizePatron();
 
-        $silinenIslemLoglari = $this->deletedIslemLogQuery(null, $listLimit)->get();
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $silinenKasa = $this->deletedKasaQuery(null, self::LIST_LIMIT, $tarih1, $tarih2)->get();
 
-        $musteriIletisimGuncellemeleri = SettingsAuditLog::query()
-            ->where('action', SettingsAuditLog::ACTION_MUSTERI_CONTACT_UPDATED)
-            ->with(['personel:id,ad'])
-            ->orderByDesc('id')
-            ->limit($listLimit)
-            ->get();
+        return view('settings.deleted-records-kasa', compact('silinenKasa', 'tarih1', 'tarih2'));
+    }
 
-        return view('settings.deleted-records', compact(
-            'silinenServisler',
-            'silinenKasa',
+    public function digerPage(Request $request)
+    {
+        $this->authorizePatron();
+
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $silinenIslemLoglari = $this->deletedIslemLogQuery(null, self::LIST_LIMIT, $tarih1, $tarih2)->get();
+        $musteriIletisimGuncellemeleri = $this->musteriGuncellemeQuery(self::LIST_LIMIT, $tarih1, $tarih2)->get();
+
+        return view('settings.deleted-records-diger', compact(
             'silinenIslemLoglari',
-            'musteriIletisimGuncellemeleri'
+            'musteriIletisimGuncellemeleri',
+            'tarih1',
+            'tarih2'
         ));
     }
 
@@ -66,7 +85,8 @@ class DeletedRecordsController extends Controller
         $this->authorizePatron();
 
         $q = trim((string) $request->input('q', ''));
-        $logs = $this->deletedIslemLogQuery($q, 500)->get();
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $logs = $this->deletedIslemLogQuery($q, self::LIST_LIMIT, $tarih1, $tarih2)->get();
         $html = view('settings.partials.deleted-islemlog-rows', [
             'silinenIslemLoglari' => $logs,
             'emptyMessage' => $q === ''
@@ -85,7 +105,8 @@ class DeletedRecordsController extends Controller
         $this->authorizePatron();
 
         $q = trim((string) $request->input('q', ''));
-        $rows = $this->deletedKasaQuery($q, 500)->get();
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $rows = $this->deletedKasaQuery($q, self::LIST_LIMIT, $tarih1, $tarih2)->get();
         $html = view('settings.partials.deleted-kasa-rows', [
             'silinenKasa' => $rows,
             'emptyMessage' => $q === ''
@@ -104,7 +125,8 @@ class DeletedRecordsController extends Controller
         $this->authorizePatron();
 
         $q = trim((string) $request->input('q', ''));
-        $rows = $this->deletedServisQuery($q, 500)->get();
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $rows = $this->deletedServisQuery($q, self::LIST_LIMIT, $tarih1, $tarih2)->get();
         $html = view('settings.partials.deleted-servis-rows', [
             'silinenServisler' => $rows,
             'emptyMessage' => $q === ''
@@ -118,12 +140,52 @@ class DeletedRecordsController extends Controller
         ]);
     }
 
-    private function deletedIslemLogQuery(?string $search, int $limit = 500)
+    public function searchMusteriGuncelleme(Request $request)
+    {
+        $this->authorizePatron();
+
+        [$tarih1, $tarih2] = $this->dateRangeFromRequest($request);
+        $rows = $this->musteriGuncellemeQuery(self::LIST_LIMIT, $tarih1, $tarih2)->get();
+        $html = view('settings.partials.deleted-musteri-guncelleme-rows', [
+            'musteriIletisimGuncellemeleri' => $rows,
+        ])->render();
+
+        return response()->json([
+            'html' => $html,
+            'count' => $rows->count(),
+        ]);
+    }
+
+    private function musteriGuncellemeQuery(int $limit, ?string $tarih1 = null, ?string $tarih2 = null)
+    {
+        $query = SettingsAuditLog::query()
+            ->where('action', SettingsAuditLog::ACTION_MUSTERI_CONTACT_UPDATED)
+            ->with(['personel:id,ad'])
+            ->orderByDesc('id');
+
+        if ($tarih1) {
+            $query->whereDate('created_at', '>=', $tarih1);
+        }
+        if ($tarih2) {
+            $query->whereDate('created_at', '<=', $tarih2);
+        }
+
+        return $query->limit($limit);
+    }
+
+    private function deletedIslemLogQuery(?string $search, int $limit = 500, ?string $tarih1 = null, ?string $tarih2 = null)
     {
         $query = Islemloglari::onlyDeleted()
             ->with(['personel', 'servis', 'servisDurum', 'silenKisi'])
             ->orderByDesc('silinme_tarihi')
             ->orderByDesc('id');
+
+        if ($tarih1) {
+            $query->whereDate('silinme_tarihi', '>=', $tarih1);
+        }
+        if ($tarih2) {
+            $query->whereDate('silinme_tarihi', '<=', $tarih2);
+        }
 
         $term = trim((string) $search);
         if ($term === '') {
@@ -163,12 +225,19 @@ class DeletedRecordsController extends Controller
         return $query->limit($limit);
     }
 
-    private function deletedServisQuery(?string $search, int $limit = 500)
+    private function deletedServisQuery(?string $search, int $limit = 500, ?string $tarih1 = null, ?string $tarih2 = null)
     {
         $query = Servis::with(['musteri', 'personel', 'servisDurum', 'silenKisi', 'marka', 'cihazTuru'])
             ->where('silindi', 1)
             ->orderByDesc('silinme_tarihi')
             ->orderByDesc('id');
+
+        if ($tarih1) {
+            $query->whereDate('silinme_tarihi', '>=', $tarih1);
+        }
+        if ($tarih2) {
+            $query->whereDate('silinme_tarihi', '<=', $tarih2);
+        }
 
         $term = trim((string) $search);
         if ($term === '') {
@@ -223,12 +292,19 @@ class DeletedRecordsController extends Controller
         return $query->limit($limit);
     }
 
-    private function deletedKasaQuery(?string $search, int $limit = 500)
+    private function deletedKasaQuery(?string $search, int $limit = 500, ?string $tarih1 = null, ?string $tarih2 = null)
     {
         $query = Kasa::onlyDeleted()
             ->with(['personel', 'ilgiliPersonel', 'odemeTuru', 'odemeSekli', 'servis', 'silenKisi'])
             ->orderByDesc('silinme_tarihi')
             ->orderByDesc('id');
+
+        if ($tarih1) {
+            $query->whereDate('silinme_tarihi', '>=', $tarih1);
+        }
+        if ($tarih2) {
+            $query->whereDate('silinme_tarihi', '<=', $tarih2);
+        }
 
         $term = trim((string) $search);
         if ($term === '') {

@@ -145,12 +145,18 @@ Route::delete('/ayarlar/duyurular/{id}', [AnnouncementController::class, 'destro
 // Ayarlar (Role-Ability) Rotaları
 Route::get('/ayarlar', [SettingsController::class, 'index'])->name('settings.index')->middleware('auth');
 Route::post('/ayarlar', [SettingsController::class, 'update'])->name('settings.update')->middleware('auth');
-Route::get('/ayarlar/silinen-kayitlar', [DeletedRecordsController::class, 'index'])->name('settings.deletedRecords.index')->middleware('auth');
-Route::get('/ayarlar/silinen-kayitlar/islemlog', [DeletedRecordsController::class, 'searchIslemLog'])->name('settings.deletedRecords.searchIslemLog')->middleware('auth');
-Route::get('/ayarlar/silinen-kayitlar/kasa', [DeletedRecordsController::class, 'searchKasa'])->name('settings.deletedRecords.searchKasa')->middleware('auth');
-Route::get('/ayarlar/silinen-kayitlar/servis', [DeletedRecordsController::class, 'searchServis'])->name('settings.deletedRecords.searchServis')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar', function () {
+    return redirect()->route('settings.deletedRecords.servis');
+})->name('settings.deletedRecords.index')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/servis', [DeletedRecordsController::class, 'servisPage'])->name('settings.deletedRecords.servis')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/servis/search', [DeletedRecordsController::class, 'searchServis'])->name('settings.deletedRecords.searchServis')->middleware('auth');
 Route::post('/ayarlar/silinen-kayitlar/servis/{servis}/restore', [DeletedRecordsController::class, 'restoreServis'])->name('settings.deletedRecords.restoreServis')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/kasa', [DeletedRecordsController::class, 'kasaPage'])->name('settings.deletedRecords.kasa')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/kasa/search', [DeletedRecordsController::class, 'searchKasa'])->name('settings.deletedRecords.searchKasa')->middleware('auth');
 Route::post('/ayarlar/silinen-kayitlar/kasa/{kasa}/restore', [DeletedRecordsController::class, 'restoreKasa'])->name('settings.deletedRecords.restoreKasa')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/diger', [DeletedRecordsController::class, 'digerPage'])->name('settings.deletedRecords.diger')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/diger/islemlog/search', [DeletedRecordsController::class, 'searchIslemLog'])->name('settings.deletedRecords.searchIslemLog')->middleware('auth');
+Route::get('/ayarlar/silinen-kayitlar/diger/musteri-guncelleme/search', [DeletedRecordsController::class, 'searchMusteriGuncelleme'])->name('settings.deletedRecords.searchMusteriGuncelleme')->middleware('auth');
 Route::post('/ayarlar/silinen-kayitlar/islemlog/{log}/restore', [DeletedRecordsController::class, 'restoreIslemLog'])->name('settings.deletedRecords.restoreIslemLog')->middleware('auth');
 // Ayarlar: Markalar CRUD (basit)
 Route::get('/ayarlar/markalar', [SettingsController::class, 'markalar'])->name('settings.markalar.index')->middleware('auth');

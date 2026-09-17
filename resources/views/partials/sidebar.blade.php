@@ -195,9 +195,33 @@
                     </a>
                 </li>
                 @endif
+                {{-- Silinen Kayıtlar menüsü: Sadece Patron (1071) erişsin --}}
+                @if ($loggedInUser && $loggedInUser->poz_id == 1071)
+                @php
+                    $silinenKayitlarAktif = request()->is('ayarlar/silinen-kayitlar*');
+                @endphp
+                <li class="nxl-item nxl-hasmenu {{ $silinenKayitlarAktif ? 'active nxl-trigger' : '' }}">
+                    <a href="javascript:void(0);" class="nxl-link">
+                        <span class="nxl-micon"><i class="feather-trash-2"></i></span>
+                        <span class="nxl-mtext">SİLİNEN KAYITLAR</span>
+                        <span class="nxl-arrow"><i class="feather-chevron-right"></i></span>
+                    </a>
+                    <ul class="nxl-submenu">
+                        <li class="nxl-item {{ request()->is('ayarlar/silinen-kayitlar/servis*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('settings.deletedRecords.servis') }}">Servis</a>
+                        </li>
+                        <li class="nxl-item {{ request()->is('ayarlar/silinen-kayitlar/kasa*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('settings.deletedRecords.kasa') }}">Kasa</a>
+                        </li>
+                        <li class="nxl-item {{ request()->is('ayarlar/silinen-kayitlar/diger*') ? 'active' : '' }}">
+                            <a class="nxl-link" href="{{ route('settings.deletedRecords.diger') }}">Diğer</a>
+                        </li>
+                    </ul>
+                </li>
+                @endif
                 {{-- Ayarlar menüsü: Sadece Patron (1071) erişsin (ileride genişletilebilir) --}}
                 @if ($loggedInUser && $loggedInUser->poz_id == 1071)
-                <li class="nxl-item {{ request()->is('ayarlar*') ? 'active' : '' }}">
+                <li class="nxl-item {{ request()->is('ayarlar*') && !request()->is('ayarlar/silinen-kayitlar*') ? 'active' : '' }}">
                     <a href="{{ url('/ayarlar') }}" class="nxl-link">
                         <span class="nxl-micon"><i class="feather-settings"></i></span>
                         <span class="nxl-mtext">AYARLAR</span>
