@@ -6,6 +6,7 @@ use App\Models\Servis;
 use App\Models\Kasa;
 use App\Models\Islemloglari;
 use App\Models\SettingsAuditLog;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -36,11 +37,19 @@ class DeletedRecordsController extends Controller
     // belleğini aşıp 500 veriyordu; her sekmede aynı üst sınır kullanılıyor.
     private const LIST_LIMIT = 500;
 
+    /**
+     * Tarih alanları boş bırakılırsa (ilk açılış veya datepicker temizlenirse) her zaman
+     * bugüne düşer; kullanıcı datepicker ile değiştirdiğinde o tarih kullanılır.
+     */
     private function dateRangeFromRequest(Request $request): array
     {
+        $bugun = Carbon::today()->format('Y-m-d');
+        $tarih1 = trim((string) $request->input('tarih1', ''));
+        $tarih2 = trim((string) $request->input('tarih2', ''));
+
         return [
-            trim((string) $request->input('tarih1', '')) ?: null,
-            trim((string) $request->input('tarih2', '')) ?: null,
+            $tarih1 !== '' ? $tarih1 : $bugun,
+            $tarih2 !== '' ? $tarih2 : $bugun,
         ];
     }
 
