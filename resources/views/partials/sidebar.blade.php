@@ -72,10 +72,11 @@
                             $bugunkuUlasilamadiCount = null;
                         }
                     }
-                    // Silinen Kayıtlar: bugün silinen kayıt sayıları (sadece Patron görüyor)
+                    // Silinen Kayıtlar: bugün silinen kayıt sayıları (sadece Patron görüyor).
+                    // Diğer (işlem logları + müşteri güncellemeleri) baloncuğa dahil edilmiyor;
+                    // işlem logu silme rutin bir düzenleme işlemi, güncelleme ise silme değil.
                     $silinenServisBugunCount = null;
                     $silinenKasaBugunCount = null;
-                    $silinenDigerBugunCount = null;
                     $silinenKayitlarToplamCount = null;
                     if ($loggedInUser && (int) $loggedInUser->poz_id === $patronPozisyonId) {
                         try {
@@ -86,15 +87,10 @@
                             $silinenKasaBugunCount = \App\Models\Kasa::onlyDeleted()
                                 ->whereDate('silinme_tarihi', $bugun)
                                 ->count();
-                            // Müşteri ad/tel güncellemeleri silinen kayıt değil (güncelleme logu), sayıma katılmaz.
-                            $silinenDigerBugunCount = \App\Models\Islemloglari::onlyDeleted()
-                                ->whereDate('silinme_tarihi', $bugun)
-                                ->count();
-                            $silinenKayitlarToplamCount = $silinenServisBugunCount + $silinenKasaBugunCount + $silinenDigerBugunCount;
+                            $silinenKayitlarToplamCount = $silinenServisBugunCount + $silinenKasaBugunCount;
                         } catch (\Throwable $e) {
                             $silinenServisBugunCount = null;
                             $silinenKasaBugunCount = null;
-                            $silinenDigerBugunCount = null;
                             $silinenKayitlarToplamCount = null;
                         }
                     }
@@ -262,9 +258,6 @@
                             <a class="nxl-link" href="{{ route('settings.deletedRecords.diger') }}">
                                 <span class="nxl-mtext">
                                     <span class="nxl-mtext-label">Diğer</span>
-                                    @if(!empty($silinenDigerBugunCount))
-                                        <span class="badge bg-danger">{{ $silinenDigerBugunCount }}</span>
-                                    @endif
                                 </span>
                             </a>
                         </li>
