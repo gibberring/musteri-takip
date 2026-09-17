@@ -1,6 +1,6 @@
 @forelse($silinenServisler as $servis)
     <tr data-row-id="servis-{{ $servis->id }}">
-        <td>#{{ $servis->id }}</td>
+        <td><a href="{{ route('servisler.index', ['open_servis_id' => $servis->id]) }}" target="_blank" rel="noopener noreferrer">#{{ $servis->id }}</a></td>
         <td>{{ $servis->silinme_tarihi ?? '-' }}</td>
         <td>{{ $servis->musteri?->ad ?? '-' }}</td>
         <td>{{ $servis->personel?->ad ?? '-' }}</td>
