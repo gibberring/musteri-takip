@@ -532,7 +532,16 @@ class IslemLogController extends Controller
     {
         $this->authorizeLogAction();
         try {
-            $log = Islemloglari::notDeleted()->findOrFail($islemlog);
+            $log = Islemloglari::notDeleted()->find($islemlog);
+            if (!$log) {
+                // Kayıt zaten silinmiş (örn. çift tıklama) veya hiç yok; kullanıcıya
+                // gerçek durumu net söyle, "sunucu hatası" gibi göstermeyelim.
+                return response()->json([
+                    'success' => false,
+                    'already_deleted' => true,
+                    'message' => 'Bu işlem kaydı zaten silinmiş veya bulunamadı. Liste yenileniyor.',
+                ], 404);
+            }
             $servisId = $log->servis_id;
             $log->update([
                 'silindi' => 1,

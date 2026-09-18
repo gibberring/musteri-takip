@@ -1605,10 +1605,67 @@
         });
     };
 
-    window.silIslemLog = function(logId){
+    window.silIslemLog = function(logId, $btn){
         if (window._proposalServisDetayShowHandler) return;
+        if ($btn && $btn.data('deleting')) return; // Aynı satır için istek zaten sürüyor, tekrar tetiklenmesin.
+
+        function refreshLogsAndDurum(){
+            // Detayları yeniden çek ve hem logları hem mevcut durum badge'ini tazele
+            var sid = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
+            if (!sid) return;
+            $.get('/servisler/' + sid + '/detay', function(data){
+                try {
+                    window.currentServisMevcutDurumId = (data.mevcutDurumId !== undefined && data.mevcutDurumId !== null) ? String(data.mevcutDurumId) : '';
+                } catch (e) { /* no-op */ }
+                // Loglar
+                var tbody = $('#modalIslemLoglariBody');
+                var html = '';
+                var canEditLog = (window.PERM && window.PERM.can && window.PERM.can.canEditLogs && window.PERM.can.canEditLogs());
+                var canDeleteLog = (window.PERM && window.PERM.can && window.PERM.can.canDeleteLogs && window.PERM.can.canDeleteLogs());
+                (data.islemloglari || []).forEach(function(l){
+                    var tarih = (l.tarih || '-') + ' ' + (l.saat || '');
+                    var yapan = l.personel ? l.personel.ad : '-';
+                    var ad = l.servis_durum ? l.servis_durum.ad : '-';
+                    var aciklama = normalizeLogAciklama(l.aciklama);
+                    var actions = '';
+                    if (canEditLog) actions += '<button class="btn btn-sm btn-secondary log-duzenle-btn" data-log-id="' + l.id + '" style="padding: 0.1rem 0.3rem;"><i class="feather feather-edit-3"></i></button>';
+                    if (canDeleteLog) actions += '<button class="btn btn-sm btn-danger log-sil-btn" data-log-id="' + l.id + '" style="padding: 0.1rem 0.3rem;"><i class="feather feather-trash-2"></i></button>';
+                    html += '<tr>'
+                        + '<td class="tdd">' + tarih + '</td>'
+                        + '<td class="tdd">' + yapan + '</td>'
+                        + '<td class="tdd">' + ad + '</td>'
+                        + '<td class="tdd">' + aciklama + '</td>'
+                        + '<td class="tdd text-center">' + (actions ? '<div class="d-flex justify-content-center gap-1">' + actions + '</div>' : '') + '</td>'
+                        + '</tr>';
+                });
+                tbody.html(html || '<tr><td colspan="5" class="text-center">İşlem kaydı bulunamadı.</td></tr>');
+
+                // Mevcut durum badge
+                var durumId = Number(data.mevcutDurumId);
+                var badgeClass = 'badge';
+                if ([9097, 9103, 9477].includes(durumId)) badgeClass += ' bg-soft-dark text-dark';
+                else if ([9098].includes(durumId)) badgeClass += ' bg-soft-secondary text-secondary';
+                else if ([9113, 9100].includes(durumId)) badgeClass += ' bg-soft-warning text-warning';
+                else if (durumId === 9334) badgeClass += ' bg-soft-primary text-primary';
+                else if ([9115, 9114, 9105, 9099].includes(durumId)) badgeClass += ' bg-soft-success text-success';
+                else badgeClass += ' bg-soft-danger text-danger';
+                $('#modalMevcutDurumWrapper').html(data.mevcutDurumAdi ? '<span class="' + badgeClass + '">' + data.mevcutDurumAdi + '</span>' : '<span class="badge bg-secondary">Bilinmiyor</span>');
+
+                // Durum seçeneklerini yeniden yükle
+                if (typeof window.populateServisDurumDropdown === 'function') {
+                    window.populateServisDurumDropdown(data.mevcutDurumId, data.mevcutDurumAdi, data.tumDurumlar || []);
+                }
+                try {
+                    $(document).trigger('servisDurumuGuncellendi', [sid, data]);
+                    window.lastServisDurumuGuncellemesi = { servisId: sid, servis: data };
+                } catch (eventError) {
+                    console.warn('servisDurumuGuncellendi olayı tetiklenemedi:', eventError);
+                }
+            });
+        }
 
         function performDelete(){
+            if ($btn) { $btn.data('deleting', true).prop('disabled', true); }
             $.ajax({
                 url: '/islemlog/' + logId,
                 type: 'POST',
@@ -1617,63 +1674,18 @@
             .done(function(response){
                 if (response && response.success) {
                     if (window.Swal && Swal.fire) { Swal.fire('Silindi!', 'İşlem kaydı başarıyla silindi.', 'success'); }
-                    // Detayları yeniden çek ve hem logları hem mevcut durum badge'ini tazele
-                    var sid = window.mevcutServisId || $('#servisDetayModal').data('servis-id');
-                    if (sid) {
-                        $.get('/servisler/' + sid + '/detay', function(data){
-                            try {
-                                window.currentServisMevcutDurumId = (data.mevcutDurumId !== undefined && data.mevcutDurumId !== null) ? String(data.mevcutDurumId) : '';
-                            } catch (e) { /* no-op */ }
-                            // Loglar
-                            var tbody = $('#modalIslemLoglariBody');
-                            var html = '';
-                            var canEditLog = (window.PERM && window.PERM.can && window.PERM.can.canEditLogs && window.PERM.can.canEditLogs());
-                            var canDeleteLog = (window.PERM && window.PERM.can && window.PERM.can.canDeleteLogs && window.PERM.can.canDeleteLogs());
-                            (data.islemloglari || []).forEach(function(l){
-                                var tarih = (l.tarih || '-') + ' ' + (l.saat || '');
-                                var yapan = l.personel ? l.personel.ad : '-';
-                                var ad = l.servis_durum ? l.servis_durum.ad : '-';
-                                var aciklama = normalizeLogAciklama(l.aciklama);
-                                var actions = '';
-                                if (canEditLog) actions += '<button class="btn btn-sm btn-secondary log-duzenle-btn" data-log-id="' + l.id + '" style="padding: 0.1rem 0.3rem;"><i class="feather feather-edit-3"></i></button>';
-                                if (canDeleteLog) actions += '<button class="btn btn-sm btn-danger log-sil-btn" data-log-id="' + l.id + '" style="padding: 0.1rem 0.3rem;"><i class="feather feather-trash-2"></i></button>';
-                                html += '<tr>'
-                                    + '<td class="tdd">' + tarih + '</td>'
-                                    + '<td class="tdd">' + yapan + '</td>'
-                                    + '<td class="tdd">' + ad + '</td>'
-                                    + '<td class="tdd">' + aciklama + '</td>'
-                                    + '<td class="tdd text-center">' + (actions ? '<div class="d-flex justify-content-center gap-1">' + actions + '</div>' : '') + '</td>'
-                                    + '</tr>';
-                            });
-                            tbody.html(html || '<tr><td colspan="5" class="text-center">İşlem kaydı bulunamadı.</td></tr>');
-
-                            // Mevcut durum badge
-                            var durumId = Number(data.mevcutDurumId);
-                            var badgeClass = 'badge';
-                            if ([9097, 9103, 9477].includes(durumId)) badgeClass += ' bg-soft-dark text-dark';
-                            else if ([9098].includes(durumId)) badgeClass += ' bg-soft-secondary text-secondary';
-                            else if ([9113, 9100].includes(durumId)) badgeClass += ' bg-soft-warning text-warning';
-                            else if (durumId === 9334) badgeClass += ' bg-soft-primary text-primary';
-                            else if ([9115, 9114, 9105, 9099].includes(durumId)) badgeClass += ' bg-soft-success text-success';
-                            else badgeClass += ' bg-soft-danger text-danger';
-                            $('#modalMevcutDurumWrapper').html(data.mevcutDurumAdi ? '<span class="' + badgeClass + '">' + data.mevcutDurumAdi + '</span>' : '<span class="badge bg-secondary">Bilinmiyor</span>');
-
-                            // Durum seçeneklerini yeniden yükle
-                            if (typeof window.populateServisDurumDropdown === 'function') {
-                                window.populateServisDurumDropdown(data.mevcutDurumId, data.mevcutDurumAdi, data.tumDurumlar || []);
-                            }
-                            try {
-                                $(document).trigger('servisDurumuGuncellendi', [sid, data]);
-                                window.lastServisDurumuGuncellemesi = { servisId: sid, servis: data };
-                            } catch (eventError) {
-                                console.warn('servisDurumuGuncellendi olayı tetiklenemedi:', eventError);
-                            }
-                        });
-                    }
+                    refreshLogsAndDurum();
                 } else {
+                    if ($btn) { $btn.data('deleting', false).prop('disabled', false); }
                     if (window.Swal && Swal.fire) { Swal.fire('Hata!', (response && response.message) ? response.message : 'Silme işlemi sırasında bir hata oluştu.', 'error'); }
                 }
             }).fail(function(jqXHR){
+                if ($btn) { $btn.data('deleting', false).prop('disabled', false); }
+                if (jqXHR.responseJSON && jqXHR.responseJSON.already_deleted) {
+                    // Kayıt zaten silinmiş (örn. çift tıklama); listeyi sessizce tazele.
+                    refreshLogsAndDurum();
+                    return;
+                }
                 if (window.Swal && Swal.fire) { Swal.fire('Hata!', 'Silme işlemi başarısız oldu. ' + ((jqXHR.responseJSON && jqXHR.responseJSON.message) ? jqXHR.responseJSON.message : ''), 'error'); }
             });
         }
@@ -1775,8 +1787,9 @@
     });
     $(document).on('click', '#modalIslemLoglariBody .log-sil-btn', function(e){
         e.preventDefault();
-        var id = $(this).data('log-id');
-        if (id) { window.silIslemLog(id); }
+        var $btn = $(this);
+        var id = $btn.data('log-id');
+        if (id) { window.silIslemLog(id, $btn); }
     });
 
     // === Global: Servis Kaydını Sil (Soft Delete) ===
