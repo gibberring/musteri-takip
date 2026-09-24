@@ -8,6 +8,7 @@ use App\Models\Islemloglari;
 use App\Models\KasaOdemeSekli; // Yeni model eklendi
 use App\Models\ServisDurumSoru;
 use App\Models\Personel;
+use App\Services\TeknisyenGunlukKasaHesaplayici;
 use App\Models\ServisDurumCevap;
 use App\Models\ServisDurumCevap0;
 use App\Models\Marka;
@@ -840,7 +841,14 @@ class ServisController extends Controller
 
         $teknisyenler = $personelIds->isEmpty()
             ? collect()
-            : Personel::whereIn('id', $personelIds)->get(['id', 'ad', 'resim', 'poz_id'])->keyBy('id');
+            : Personel::whereIn('id', $personelIds)->get(['id', 'ad', 'resim', 'poz_id', 'calisma_sekli_type', 'calisma_sekli_adet_tutar'])->keyBy('id');
+
+        // Günlük ciro / teknisyen payı / firma payı yalnızca Patron için hesaplanır ve view'a hiç gönderilmez.
+        $finansGoster = (int) (Auth::user()->poz_id ?? 0) === 1071;
+        $bugun = Carbon::today();
+        $finansOzetleri = $finansGoster
+            ? app(TeknisyenGunlukKasaHesaplayici::class)->hesapla($teknisyenler, $bugun->format('Y-m-d'))
+            : [];
 
         $durumlar = $durumIdsInData->isEmpty()
             ? collect()
@@ -892,6 +900,7 @@ class ServisController extends Controller
                 'avatar_url' => $this->personelAvatarUrl($personel->resim ?? null, $personel->poz_id ?? $teknisyenPozisyonId),
                 'toplam' => $acikToplam,
                 'durumlar' => $durumSayilari,
+                'finans' => $finansOzetleri[(int) $personelId] ?? null,
             ];
         }
 
@@ -905,6 +914,8 @@ class ServisController extends Controller
             'kartlar' => $kartlar,
             'toplamAcikIs' => $toplamAcikIs,
             'teknisyenSayisi' => count($kartlar),
+            'finansGoster' => $finansGoster,
+            'finansTarihi' => $bugun->format('d.m.Y'),
         ]);
     }
 

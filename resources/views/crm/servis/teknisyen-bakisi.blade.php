@@ -147,6 +147,29 @@
                                         <span class="badge {{ $durum['badge'] }}">{{ $durum['count'] }}</span>
                                     </a>
                                 @endforeach
+
+                                @if(!empty($finansGoster) && !empty($kart['finans']))
+                                    @php $finans = $kart['finans']; @endphp
+                                    <div class="teknisyen-bakisi-finans border-top mt-3 pt-3">
+                                        <div class="fs-11 fw-bold text-uppercase text-muted mb-2">Bugün · {{ $finansTarihi }}</div>
+                                        <div class="d-flex justify-content-between fs-13 mb-1">
+                                            <span class="text-muted fw-semibold">Ciro</span>
+                                            <span class="fw-bold text-success">
+                                                @if($finans['adetli'])Adetli @else{{ number_format($finans['gelir'], 2, ',', '.') }} TL @endif
+                                            </span>
+                                        </div>
+                                        <div class="d-flex justify-content-between fs-13 mb-1">
+                                            <span class="text-muted fw-semibold">Teknisyene kalan</span>
+                                            <span class="fw-bold text-dark">
+                                                @if($finans['adetli'])Adetli @else{{ number_format($finans['teknisyen_payi'], 2, ',', '.') }} TL @endif
+                                            </span>
+                                        </div>
+                                        <div class="d-flex justify-content-between fs-13">
+                                            <span class="text-muted fw-semibold">Firmaya ödemesi gereken</span>
+                                            <span class="fw-bold text-danger">{{ number_format($finans['firma_payi'], 2, ',', '.') }} TL</span>
+                                        </div>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     </div>
